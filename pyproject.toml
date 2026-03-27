@@ -1,0 +1,21 @@
+[project]
+name = "classical-tibetan-parser"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dashscope>=1.25.15",
+    "matplotlib>=3.10.8",
+    "networkx>=3.4.2",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "pytest>=9.0.2",
+    "requests>=2.32.5",
+    "scikit-learn>=1.7.2",
+    "streamlit>=1.55.0",
+    "torch>=2.11.0",
+    "torchvision>=0.26.0",
+    "tqdm>=4.67.3",
+    "transformers>=4.36.0",
+]

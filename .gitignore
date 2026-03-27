@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Large data files
+model/*.bin
+model/*.zip
+data/corpus/extracted/*.json
+uv.lock
+
+# IDE
+.vscode/
+.idea/
