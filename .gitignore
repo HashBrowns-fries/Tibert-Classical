@@ -9,10 +9,9 @@ wheels/
 .venv/
 
 # Data (too large for git)
-data/segpos_extracted/
-data/corpus/pos_dataset/
-data/corpus/extracted/
-data/corpus/spm/
+data/
+dict/
+extern/
 
 # Models (too large for git)
 model/Qwen2.5-3B-Instruct/
@@ -35,6 +34,10 @@ frontend/src-tauri/target/
 # Archives (temporary)
 _archive_*/
 *.log
+
+# Large external files
+TibAnnotationManual-PartII-SegPOS.pdf
+开题报告.md
 
 # Credentials and config
 .env

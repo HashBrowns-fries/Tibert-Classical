@@ -12,7 +12,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import QWEN_API_KEY, TIBERT_MODEL_NAME
+from config import QWEN_API_KEY, QWEN_MODEL, TIBERT_MODEL_NAME
 
 
 def print_header():
