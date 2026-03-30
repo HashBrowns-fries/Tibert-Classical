@@ -163,9 +163,10 @@ frontend/                # React + TypeScript + Vite + Tailwind v4 web UI
 
 The following actions are pre-authorized. Claude may perform them without asking for confirmation:
 
-- **运行脚本**：`.venv/bin/python scripts/*.py` 等
+- **Bash 命令**：所有 bash 命令（包括安装依赖、运行脚本、提交代码等）
+- **运行脚本**：`.venv/bin/python scripts/*.py`、`bash scripts/*.sh` 等
 - **修改已有文件**：编辑、修复 bug、重构本仓库已有文件
-- **git add / git commit**：只限本仓库，自动执行无需确认
+- **git add / git commit / git push**：只限本仓库，自动执行无需确认
 - **创建新文件**：仅限本仓库，不创建敏感文件（.env、credentials 等）
 
 **需确认的操作**：
