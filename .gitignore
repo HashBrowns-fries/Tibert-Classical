@@ -1,20 +1,52 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
+*.pyc
 build/
 dist/
 wheels/
-*.egg-info
-
-# Virtual environments
+*.egg-info/
 .venv/
 
-# Large data files
-model/*.bin
-model/*.zip
-data/corpus/extracted/*.json
-uv.lock
+# Data (too large for git)
+data/segpos_extracted/
+data/corpus/pos_dataset/
+data/corpus/extracted/
+data/corpus/spm/
 
-# IDE
+# Models (too large for git)
+model/Qwen2.5-3B-Instruct/
+model/pos_classifier/
+model/TiBERT/
+model/TBERT-pytorch/
+model/TiBERT-classical/
+model/TiBERT-classical-spm/
+model/TiBERT-classical-spm-500k/
+model/TiBERT-classical-spm-trial/
+model/TiBERT-classical-test/
+model/TiBERT.zip
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+src-tauri/target/
+frontend/src-tauri/target/
+
+# Archives (temporary)
+_archive_*/
+*.log
+
+# Credentials and config
+.env
+.env.local
+.mcp.json
+
+# Claude Code
+.claude/
+.claude-instance-id
+
+# Misc
+uv.lock
 .vscode/
 .idea/
+.DS_Store

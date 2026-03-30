@@ -1,0 +1,270 @@
+"""
+End-to-End POS Tagger Inference Demo
+====================================
+Loads the trained TiBERT + POS classifier and runs it on Tibetan text.
+
+Usage:
+    .venv/bin/python scripts/run_pos_inference.py "བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"
+    .venv/bin/python scripts/run_pos_inference.py "དགེ་འདུན་གྱི་ཆོས་སྐུལ་དེ་ཡིན"
+"""
+
+import sys
+import json
+import torch
+import torch.nn as nn
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).parent))
+from continued_pretrain import ClassicalTibetanTokenizer
+from transformers import BertConfig, BertModel
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+
+MODEL_DIR   = Path(__file__).parent.parent / "model" / "TiBERT-classical-spm-500k" / "final_model"
+CHECKPOINT  = Path(__file__).parent.parent / "model" / "pos_classifier" / "best_model.pt"
+LABEL_MAP   = Path(__file__).parent.parent / "data"  / "corpus" / "pos_dataset" / "label_map.json"
+
+# ── Case particle metadata ─────────────────────────────────────────────────────
+
+CASE_PARTICLES = {
+    "case.gen":  "属格 (的 / of)",
+    "case.agn":  "作格 (由 / by/agent)",
+    "case.all":  "为格 (对 / for/to)",
+    "case.abl":  "离格 (从 / from)",
+    "case.ela":  "从格 (从 / from)",
+    "case.ass":  "共同格 (与 / with)",
+    "case.term": "终结格 (至 / to)",
+    "case.loc":  "处格 (在 / at/in)",
+    "case.comp": "比格 (比 / than)",
+    "case.nare": "连格 (则 / then)",
+}
+
+TAG_DESCRIPTIONS = {
+    "O":         "Outside (非标签)",
+    "n.count":   "名词 (普通名词)",
+    "n.prop":    "专有名词",
+    "n.rel":     "关系名词",
+    "n.mass":    "物质名词",
+    "v.past":    "过去时动词",
+    "v.pres":    "现在时动词",
+    "v.fut":     "将来时动词",
+    "v.invar":   "不变词动词",
+    "v.neg":     "否定动词",
+    "v.aux":     "助动词",
+    "v.imp":     "命令式动词",
+    "v.cop":     "系词 (是/为)",
+    "v.*.past":  "动词过去时词根",
+    "v.*.pres":  "动词现在时词根",
+    "v.*.fut":   "动词将来时词根",
+    "n.v.*":     "名动复合词",
+    "adj":       "形容词",
+    "cv.*":      "连接动词",
+    "cl.*":      "类标记",
+    "d.*":       "限定词/冠词",
+    "num.*":     "数词",
+    "adv.*":     "副词",
+    "punc":      "标点符号",
+    "neg":       "否定词",
+    "skt":       "梵语音译",
+    "case.*":    "格助词",
+}
+
+
+# ── Model ─────────────────────────────────────────────────────────────────────
+
+class PosTagger(nn.Module):
+    """TiBERT encoder + POS classification head."""
+
+    def __init__(self, num_labels: int = 36, max_len: int = 512):
+        super().__init__()
+        self.bert = BertModel(BertConfig(
+            vocab_size=32007,
+            hidden_size=768,
+            num_hidden_layers=12,
+            num_attention_heads=12,
+            intermediate_size=3072,
+            max_position_embeddings=max_len,
+            pad_token_id=0,
+        ))
+        self.dropout = nn.Dropout(0.1)
+        self.classifier = nn.Linear(768, num_labels)
+
+    def forward(self, input_ids, attention_mask=None):
+        out = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        logits = self.classifier(self.dropout(out.last_hidden_state))
+        return logits
+
+
+# ── Inference ─────────────────────────────────────────────────────────────────
+
+@dataclass
+class TaggedToken:
+    token: str
+    label_id: int
+    label: str
+    description: str
+    is_case_particle: bool
+    case_meaning: Optional[str]
+
+
+class PosInference:
+    """End-to-end POS tagger."""
+
+    def __init__(self, device: str = None):
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Load tokenizer
+        self.tokenizer = ClassicalTibetanTokenizer(
+            spm_model_file=str(MODEL_DIR / "spm.model")
+        )
+
+        # Load label map
+        with open(LABEL_MAP, encoding="utf-8") as f:
+            lm = json.load(f)
+        self.id_to_label = {int(k): v for k, v in lm["id_to_label"].items()}
+        self.num_labels = len(self.id_to_label)
+
+        # Load model
+        self.model = PosTagger(num_labels=self.num_labels)
+        ckpt = torch.load(CHECKPOINT, map_location=self.device, weights_only=True)
+        self.model.load_state_dict(ckpt["model_state"], strict=False)
+        self.model.to(self.device)
+        self.model.eval()
+        print(f"[PosInference] Loaded model from epoch {ckpt['epoch']} → {self.device}")
+
+    def spm_tokenize(self, text: str) -> list[str]:
+        """Split Tibetan text into syllable tokens."""
+        tokens = []
+        i = 0
+        while i < len(text):
+            # Try longest match first
+            best = None
+            for n in range(min(10, len(text) - i), 0, -1):
+                sub = text[i:i+n]
+                tid = self.tokenizer._convert_token_to_id(sub)
+                unk_id = self.tokenizer._token2id.get("[UNK]")
+                if tid != unk_id:
+                    best = sub
+                    break
+            if best is None:
+                best = text[i]  # single char fallback
+            tokens.append(best)
+            i += len(best)
+        return tokens
+
+    def tag(self, text: str) -> list[TaggedToken]:
+        """Tag a Tibetan text string."""
+        syllable_tokens = self.spm_tokenize(text)
+
+        # Encode
+        ids = [self.tokenizer.bos_token_id]
+        for tok in syllable_tokens:
+            tid = self.tokenizer._convert_token_to_id(tok)
+            ids.append(tid)
+        ids.append(self.tokenizer.eos_token_id)
+        ids_tensor = torch.tensor([ids], dtype=torch.long, device=self.device)
+        attention_mask = (ids_tensor != 0).long()
+
+        # Predict
+        with torch.no_grad():
+            logits = self.model(ids_tensor, attention_mask=attention_mask)
+            pred_ids = logits.argmax(dim=-1).squeeze(0).cpu().tolist()
+
+        # Build result (skip BOS/EOS)
+        # Note: ་/། are separator markers; we still tag them but flag specially
+        results = []
+        for tok, lid in zip(syllable_tokens, pred_ids[1:-1]):
+            label = self.id_to_label.get(lid, "O")
+            is_sep = tok in ("་", "།")  # syllable separator markers
+            is_case = (not is_sep) and any(label.startswith(c) for c in CASE_PARTICLES)
+            results.append(TaggedToken(
+                token=tok,
+                label_id=lid,
+                label=label,
+                description=TAG_DESCRIPTIONS.get(label, label),
+                is_case_particle=is_case,
+                case_meaning=CASE_PARTICLES.get(label) if is_case else None,
+            ))
+        return results
+
+
+# ── Output Formatters ──────────────────────────────────────────────────────────
+
+def print_tagged_line(tagged: list[TaggedToken]):
+    """Print a formatted token-level annotation."""
+    print()
+    print("─" * 70)
+    print("  藏文       │ 标签           │ 说明")
+    print("─" * 70)
+    for t in tagged:
+        is_sep = t.token in ("་", "།")
+        flag = " ★" if t.is_case_particle else (" ·" if is_sep else "")
+        case = f" ({t.case_meaning})" if t.case_meaning else ""
+        if is_sep:
+            desc = "(音节分隔符)"
+        else:
+            desc = t.description if len(t.description) <= 18 else t.description[:16] + "…"
+        print(f"  {t.token:<10s} │ {t.label:<14s} │ {desc}{case}{flag}")
+    print("─" * 70)
+
+
+def print_summary(tagged: list[TaggedToken]):
+    """Print a summary of case particles found."""
+    # Exclude separator markers from counts
+    syllables = [t for t in tagged if t.token not in ("་", "།")]
+    case_particles = [t for t in syllables if t.is_case_particle]
+    nouns = [t for t in syllables if t.label.startswith("n.")]
+    verbs = [t for t in syllables if t.label.startswith("v.")]
+    adj = [t for t in syllables if t.label == "adj"]
+
+    print(f"\n  ┌─ 词类统计")
+    print(f"  │ 名词: {len(nouns)} | 动词: {len(verbs)} | 形容词: {len(adj)} | 格助词: {len(case_particles)}")
+    print(f"  └─")
+
+    if case_particles:
+        print(f"\n  ┌─ 格助词详解")
+        for t in case_particles:
+            print(f"  │ [{t.token}] → {t.case_meaning}")
+        print(f"  └─")
+
+        # Build sentence structure
+        structure = []
+        for t in syllables:
+            if t.is_case_particle:
+                structure.append(f"[格助:{t.token}]")
+            elif t.label.startswith("n."):
+                structure.append(f"[名:{t.token}]")
+            elif t.label.startswith("v."):
+                structure.append(f"[动:{t.token}]")
+            elif t.label == "adj":
+                structure.append(f"[形:{t.token}]")
+            else:
+                structure.append(f"[{t.token}]")
+        print(f"\n  句法结构: {' + '.join(structure)}")
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="TiBERT POS Tagger")
+    parser.add_argument("text", nargs="?", default="བོད་གི་ཡུལ་ལྷོ་ལ་སོང་",
+                        help="Classical Tibetan text to tag")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show full details")
+    args = parser.parse_args()
+
+    tagger = PosInference()
+    print(f"\n输入: {args.text}")
+    print(f"分词: {' | '.join(tagger.spm_tokenize(args.text))}")
+
+    tagged = tagger.tag(args.text)
+    print_tagged_line(tagged)
+
+    if args.verbose:
+        print_summary(tagged)
+
+
+if __name__ == "__main__":
+    main()

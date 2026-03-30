@@ -373,11 +373,11 @@ Tibert-Classical/
 ```
 
 ### 状态
-- [ ] 移动 Qwen 模型到 model/
-- [ ] 移动 corpus 处理脚本到 scripts/
-- [ ] 删除空 app/ 目录
-- [ ] 归档 frontend-design/
-- [ ] 清理 scripts/（删除测试和日志文件）
-- [ ] 更新 pyproject.toml 引用
-- [ ] 确认 gitignore 正确
+- [x] Qwen 模型已在 `model/Qwen2.5-3B-Instruct/`
+- [x] corpus 处理脚本移入 `scripts/`：extract_corpus.py, train_spm.py, tokenizer.py, train_tibetan_spm.py
+- [x] 删除空 `app/` 目录
+- [x] `frontend-design/` → `_archive_frontend-design/`
+- [x] `scripts/` 清理，测试和日志归档至 `_archive_scripts/`
+- [x] 更新 `.gitignore`（忽略 71GB pos_dataset、5.8GB Qwen 模型等大文件）
+- [x] 清理所有 `__pycache__/`
 
