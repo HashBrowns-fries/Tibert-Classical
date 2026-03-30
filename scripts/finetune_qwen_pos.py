@@ -328,6 +328,7 @@ def generate_training_data(
     num_samples: int = 50000,
     output_file: str = None,
     seed: int = 42,
+    max_tokens: int = 40,
 ) -> Path:
     """Generate instruction-tuning data from SegPOS corpus."""
     import glob
@@ -346,13 +347,21 @@ def generate_training_data(
     random.shuffle(pos_files)
 
     # Load tokenizer for POS inference
+    sys.path.insert(0, str(PROJECT_ROOT))
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
     from continued_pretrain import ClassicalTibetanTokenizer
+    from transformers import AutoTokenizer as HfAutoTokenizer
     from src.api.dependencies import get_pos_model, get_label_map
 
-    print("Loading TiBERT tokenizer and POS model...")
+    print("Loading TiBERT tokenizer...")
     tok_path = PROJECT_ROOT / "model" / "TiBERT-classical-spm-500k" / "final_model" / "spm.model"
-    tokenizer = ClassicalTibetanTokenizer(spm_model_file=str(tok_path))
+    tibert_tokenizer = ClassicalTibetanTokenizer(spm_model_file=str(tok_path))
+
+    print("Loading Qwen tokenizer for ChatML formatting...")
+    qwen_tokenizer = HfAutoTokenizer.from_pretrained(
+        str(MODEL_DIR),
+        trust_remote_code=True,
+    )
 
     # Try to load POS model (optional — if checkpoint exists)
     pos_model = None

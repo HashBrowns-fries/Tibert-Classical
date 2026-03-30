@@ -220,7 +220,20 @@ def _drop_punct_augment(ids, labs, prob):
 | `case.ass` | 9,374,516 |
 | `case.agn` | 9,206,431 |
 
-## 8. Qwen2.5-3B 微调方案
+## 8. Qwen2.5-3B 微调方案（暂停）
+
+**状态：暂停，待 GPU 空闲后继续**
+
+已完成：
+- `models/Qwen2.5-3B-Instruct/` 下载完毕（3.1B 参数，5.8 GB）
+- `scripts/finetune_qwen_pos.py` 初版完成（有 bug 待修）
+
+待完成：
+- [ ] 修复数据生成脚本 bug（tokenizer 混用问题）
+- [ ] 生成 5 万条训练数据
+- [ ] QLoRA 微调训练
+
+## 9. Qwen2.5-3B 微调方案
 
 ### 模型下载
 - `models/Qwen2.5-3B-Instruct/` 已下载（3.1B 参数，5.8 GB）
