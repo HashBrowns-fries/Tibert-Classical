@@ -461,12 +461,16 @@ def main():
     torch.backends.cudnn.benchmark = True
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    num_gpus = torch.cuda.device_count()
     print(f"\n{'='*60}")
     print(f"  TiBERT POS Classifier Training")
     print(f"{'='*60}")
     print(f"  Device:       {device}")
+    print(f"  GPUs:         {num_gpus}")
     print(f"  Encoder:      {'Frozen' if cfg.encoder_freeze else 'Fine-tuned'}")
-    print(f"  Batch size:   {cfg.batch_size} × {cfg.gradient_accum} = {cfg.batch_size * cfg.gradient_accum}")
+    print(f"  Batch size:   {cfg.batch_size} × {cfg.gradient_accum} = {cfg.batch_size * cfg.gradient_accum} (effective)")
+    if num_gpus > 1:
+        print(f"  Per-GPU batch: {cfg.batch_size // num_gpus}")
     print(f"  Head LR:      {cfg.lr_head}")
     print(f"  Max epochs:  {cfg.max_epochs}")
     print(f"  Case weight:  {cfg.case_weight}×")
@@ -492,13 +496,19 @@ def main():
     test_ds  = PosDataset("test")
     print(f"  Train: {len(train_ds)} | Dev: {len(dev_ds)} | Test: {len(test_ds)}")
 
-    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, num_workers=4)
-    dev_loader   = DataLoader(dev_ds,   batch_size=cfg.batch_size * 2, num_workers=4)
-    test_loader  = DataLoader(test_ds,  batch_size=cfg.batch_size * 2, num_workers=4)
+    num_workers = min(4, 2 * num_gpus)
+    train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    dev_loader   = DataLoader(dev_ds,   batch_size=cfg.batch_size * 2, num_workers=num_workers, pin_memory=True)
+    test_loader  = DataLoader(test_ds,  batch_size=cfg.batch_size * 2, num_workers=num_workers, pin_memory=True)
 
     # Build model
     print(f"\n[3] Building model...")
     model = PosClassifier(cfg)
+
+    # Multi-GPU: DataParallel across all available GPUs
+    if num_gpus > 1:
+        model = torch.nn.DataParallel(model, device_ids=list(range(num_gpus)))
+        print(f"  Using DataParallel on {num_gpus} GPUs")
     model.to(device)
 
     # Optimizer & scheduler

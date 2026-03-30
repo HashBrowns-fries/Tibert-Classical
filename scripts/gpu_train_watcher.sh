@@ -8,8 +8,8 @@ LOCK="$HOME/.claude/gpu_train_watcher.lock"
 MODEL_CHECKPOINT="$HOME/.claude/gpu_training_active"
 
 # GPU内存阈值（MB），需要至少这个空闲才启动训练
-# POS分类器约需 20GB，QLoRA约需 18GB
-MIN_FREE_MB=20000
+# POS分类器：DataParallel 模式，每卡约需 8GB（batch分布在多卡）
+MIN_FREE_MB=8000
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG"
