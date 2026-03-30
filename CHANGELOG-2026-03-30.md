@@ -293,8 +293,91 @@ format_instruction_sample() → ChatML JSONL
 grammar_analysis_train_50k.jsonl
 ```
 
-## 7. 关键发现
+## 10. 仓库结构整理
 
-1. **SPM 词表已包含完整音节**：`▁བདག → ID 112`，无需 retrain SPM
-2. **推理管道 vs 训练管道不一致**：数据集生成用了按符号切分 workaround，但推理没用，是 `བདག → O` 的直接原因
-3. **修复后两个管道逻辑一致**：都先按 ་/། 切分，再 encode
+### 问题
+
+```
+当前结构（混乱）:
+  app/                    ← 空目录，旧 Streamlit 遗留
+  frontend-design/        ← 旧设计实验
+  dict/                   ← 原始词典压缩包（源码）
+  extern/                 ← 原始词干词典（源码）
+  model/                   ← TiBERT 系列模型
+  models/                 ← Qwen2.5-3B（应合并到 model/）
+  data/corpus/            ← 混合了数据和脚本
+  scripts/                 ← 混合了测试、日志、训练脚本
+  src/                    ← FastAPI 后端（api/ cli/ dict/ ml/）
+  src-tauri/              ← Tauri 桌面应用（独立项目）
+  frontend/               ← React + Tauri Web UI
+  frontend/src-tauri/     ← Tauri Web UI 的 Rust 配置
+```
+
+### 整理计划
+
+```bash
+# 1. 移动 Qwen 模型
+mv models/Qwen2.5-3B-Instruct model/
+
+# 2. 移动 corpus 处理脚本
+mv data/corpus/extract_corpus.py scripts/
+mv data/corpus/train_spm.py scripts/
+mv data/corpus/tokenizer.py scripts/
+
+# 3. 删除空目录
+rmdir app
+
+# 4. 归档旧设计
+mv frontend-design _archive_frontend-design
+
+# 5. 清理 scripts 目录
+# 删除：test_*.py（测试脚本）、*.log（日志）、eval_*.json
+# 保留：train_*.py, prepare_*.py, continued_pretrain.py, finetune_*.py,
+#       run_*.sh, run_*.py, gpu_train_watcher.sh, analyze_*.py,
+#       import_dict_to_sqlite.py
+```
+
+### 目标结构
+
+```
+Tibert-Classical/
+├── model/                       ← 所有模型（TiBERT + POS + Qwen）
+│   ├── TiBERT-classical-spm-500k/
+│   ├── pos_classifier/
+│   └── Qwen2.5-3B-Instruct/     ← 从 models/ 移入
+├── data/
+│   ├── segpos_extracted/        ← 原始 SegPOS 语料
+│   └── corpus/
+│       ├── pos_dataset/         ← 训练数据
+│       ├── extracted/           ← 提取后语料
+│       └── spm/                ← SPM 模型
+├── scripts/                     ← 训练和工具脚本
+│   ├── train_pos_classifier.py
+│   ├── prepare_pos_dataset.py
+│   ├── continued_pretrain.py
+│   ├── finetune_qwen_pos.py
+│   ├── extract_corpus.py       ← 从 data/corpus/ 移入
+│   └── gpu_train_watcher.sh
+├── src/                        ← FastAPI 后端
+│   ├── api/
+│   ├── cli/
+│   └── dict/
+├── frontend/                   ← React + Tauri Web UI
+│   └── src-tauri/
+├── src-tauri/                  ← Tauri 桌面应用（独立）
+├── dict/                       ← 原始词典压缩包（源码数据）
+├── extern/                     ← 原始词干词典（源码数据）
+├── CLAUDE.md
+├── CHANGELOG-*.md
+└── README.md
+```
+
+### 状态
+- [ ] 移动 Qwen 模型到 model/
+- [ ] 移动 corpus 处理脚本到 scripts/
+- [ ] 删除空 app/ 目录
+- [ ] 归档 frontend-design/
+- [ ] 清理 scripts/（删除测试和日志文件）
+- [ ] 更新 pyproject.toml 引用
+- [ ] 确认 gitignore 正确
+
