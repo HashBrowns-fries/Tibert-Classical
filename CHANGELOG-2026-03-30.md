@@ -220,6 +220,66 @@ def _drop_punct_augment(ids, labs, prob):
 | `case.ass` | 9,374,516 |
 | `case.agn` | 9,206,431 |
 
+## 8. Qwen2.5-3B 微调方案
+
+### 模型下载
+- `models/Qwen2.5-3B-Instruct/` 已下载（3.1B 参数，5.8 GB）
+- HuggingFace repo: `Qwen/Qwen2.5-3B-Instruct`
+
+### 微调方案（QLoRA）
+
+**训练数据**（自动从 SegPOS 生成）：
+```json
+{
+  "messages": [
+    {"role": "system", "content": "你是古典藏文语法学家..."},
+    {"role": "user", "content": "分析：藏文原文 + POS标注 + 词典释义"},
+    {"role": "assistant", "content": "## 词语解析\n- བདག[n.count·名词]：...\n## 句法结构\n..."}
+  ]
+}
+```
+
+**QLoRA 配置**（4-bit，一张 3090 可跑）：
+
+| 参数 | 值 |
+|------|----|
+| 模型 | Qwen2.5-3B-Instruct |
+| 量化 | 4-bit NF4 |
+| LoRA rank | 16 |
+| LoRA alpha | 32 |
+| Target modules | q/k/v/o_proj, gate/up/down_proj |
+| 有效 batch | 4×8=32 |
+| 训练 epoch | 3 |
+
+**启动训练**：
+```bash
+# 1. 生成训练数据（5万条）
+.venv/bin/python scripts/finetune_qwen_pos.py --generate_data --num_samples 50000
+
+# 2. 开始微调（需 GPU 空闲）
+.venv/bin/python scripts/finetune_qwen_pos.py --train \
+    --data_file data/corpus/grammar_analysis_train_50000.jsonl \
+    --num_epochs 3 --batch_size 4 --gradient_accum 8
+```
+
+**训练脚本**：`scripts/finetune_qwen_pos.py`
+
+### 训练数据生成流程
+
+```
+SegPOS 句子（1860万）
+    ↓
+parse_segpos_line() → [(word, tag), ...]
+    ↓
+POS tagger（TiBERT）→ 标注结果
+    ↓
+词典查询（lookup_word）→ 释义
+    ↓
+format_instruction_sample() → ChatML JSONL
+    ↓
+grammar_analysis_train_50k.jsonl
+```
+
 ## 7. 关键发现
 
 1. **SPM 词表已包含完整音节**：`▁བདག → ID 112`，无需 retrain SPM
