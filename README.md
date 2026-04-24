@@ -1,68 +1,98 @@
-# 古典藏文解析辅助学习系统
+# TibSplit — 古典藏文形态学解析系统
 
-Classical Tibetan Parser - Learning Assistant
+**TibSplit** 是一款基于 BERT-CRF 的古典藏文形态学解析框架，结合领域适配编码器、类别平衡损失与诊断评估，系统揭示细粒度 POS 标注中的类别不平衡问题。
 
-基于TiBERT基座模型 + Qwen LLM，实现古典藏文的智能解析、语法分析、助词解读，帮助用户学习和理解古典藏文。
+> 论文：[TibSplit：诊断古典藏文形态学解析中的类别不平衡](#)（12 页，xelatex 编译）
 
-## 核心架构
+---
+
+## 核心功能
+
+| 功能 | 描述 |
+|------|------|
+| **POS 标注** | TiBERT-classical-spm-500k 编码器 + BERT-CRF，77 类细粒度标签 |
+| **格助词分析** | 属格/作格/为格/离格/从格/共同格/终结格/处格，自动识别与解释 |
+| **Gemma 分词** | gemma-2-mitra-it 驱动藏文音节切分（་/། 分隔符） |
+| **RAG 问答** | ChromaDB 向量检索 + gemma 生成，藏文佛典语料库问答 |
+| **SRS 学习** | SM-2 算法助词间隔重复复习，gemma 评分练习 |
+| **词典查询** | 540k+ 条目 SQLite 词典，音节级查找 |
+
+---
+
+## 系统架构
 
 ```
-输入古典藏文文本
-    ↓
-TiBERT (基座模型) ──→ 提供藏文语义理解能力
-    ↓
-Qwen LLM ──→ 分词、词性标注、格助词分析、语法解释
-    ↓
-输出：分词结果 | 词性标注 | 格助词解读 | 语法分析
+┌─────────────────────────────────────────────────────────────┐
+│                      React 前端 (Vite + Tailwind v4)        │
+│  AnalyzerPage · LearnerPage · LookupPage · RagPage        │
+└────────────────────────┬──────────────────────────────────┘
+                         │ HTTP / API
+┌────────────────────────▼──────────────────────────────────┐
+│                   FastAPI 后端                              │
+│                                                          │
+│  server.py          rag_server.py                        │
+│  · /pos             · /rag (RAG 问答)                    │
+│  · /analyze         · /segment (分词)                    │
+│  · /learn/*         · /lookup (词典)                     │
+│  · /corpus/stats    · /rag/stats                         │
+└──┬──────────────────────────┬──────────────────────────────┘
+   │ vLLM                    │ ChromaDB                    │
+▼  gemma-2-mitra-it      ▼  sentence-transformers       ▼
+   (GPU 0)                  embedder                      TiBERT-classical-spm-500k
+                                                         POS 分类器
 ```
 
-## 功能特性
-
-- **智能分词**: LLM驱动的精确分词
-- **词性标注**: 名词、动词、助词等自动标注
-- **格助词解读**: 属格、具格、为格、离格等语法功能解释
-- **语法分析**: 整句语法结构分析
-- **学习辅助**: 助词用法详解、例句展示
+---
 
 ## 项目结构
 
 ```
-classical_tibetan_parser/
-├── config.py                 # 项目配置
-├── pyproject.toml            # Python依赖
+Tibert-Classical/
+├── src/api/
+│   ├── server.py          # 主 API：POS / analyze / learn
+│   ├── rag_server.py     # RAG API：/rag / segment / lookup
+│   ├── rag.py            # ChromaDB 索引构建
+│   ├── models.py         # Pydantic 请求/响应模型
+│   └── dependencies.py   # 模型加载（tokenizer / POS classifier）
 │
-├── src/                      # 核心源代码
-│   ├── __init__.py
-│   ├── ml/                   # ML模块
-│   │   ├── tibert_model.py  # TiBERT模型
-│   │   └── trainer.py        # 微调训练
-│   └── api/                  # API层
-│       └── grammar_api.py    # 语法分析API (LLM驱动)
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── AnalyzerPage.tsx   # 藏文分析器
+│   │   │   ├── LearnerPage.tsx     # 助词学习 + SRS
+│   │   │   ├── LookupPage.tsx      # 词典查询
+│   │   │   └── RagPage.tsx        # RAG 佛典问答
+│   │   ├── hooks/
+│   │   │   ├── useAnalysis.ts     # 分析 API hook
+│   │   │   ├── useLearner.ts      # SRS + 练习 hook
+│   │   │   ├── useLookup.ts       # 词典查询 hook
+│   │   │   └── useRag.ts         # RAG hook
+│   │   └── index.css             # Tailwind v4 暗色主题
+│   └── package.json
 │
-├── app/                      # Streamlit前端
-│   ├── main.py
-│   └── pages/
-│       ├── analyzer.py       # 文本分析
-│       ├── learner.py        # 学习辅助
-│       └── corpus.py         # 语料管理
+├── scripts/
+│   ├── train_pos_classifier.py     # BERT-CRF POS 训练
+│   ├── continued_pretrain.py       # TiBERT 领域适配 MLM
+│   ├── prepare_pos_dataset.py      # SegPOS → token-classification
+│   ├── run_pos_inference.py       # POS 推理脚本
+│   ├── eval_pos_model_v2.py       # 逐类别 F1 分析
+│   ├── build_rag_index.py         # ChromaDB 索引构建
+│   └── learner_corpus_analysis.py # 语料库统计分析
 │
-├── scripts/                  # 工具脚本
-│   ├── prepare_data.py      # 数据预处理
-│   └── train_tibert.py      # TiBERT微调
+├── model/
+│   ├── TiBERT-classical-spm-500k/ # MLM 微调编码器
+│   └── pos_classifier/best_model.pt # BERT-CRF 分类器（36 类）
 │
-├── data/                     # 数据
-│   └── corpus/              # 语料库
-│
-├── database/                 # 藏文文献库
-│
-└── models/                  # 模型存储
+├── paper.tex    # 中文论文，xelatex 编译
+└── paper.pdf   # 编译输出（12 页）
 ```
+
+---
 
 ## 安装
 
 ```bash
 pip install -e .
-# 或
 uv sync
 ```
 
@@ -70,57 +100,121 @@ uv sync
 
 - Python >= 3.10
 - PyTorch >= 2.0
-- Transformers
-- Streamlit
-- dashscope (Qwen API)
+- Transformers, Accelerate
+- vLLM（GPU 推理）
+- sentence-transformers（RAG embedder）
+- ChromaDB
+- FastAPI + uvicorn
+- React 18 + Vite + Tailwind v4
+
+---
 
 ## 快速开始
 
-### 1. 配置API
+### 后端 API
 
 ```bash
-export DASHSCOPE_API_KEY="your-api-key"
+# 主服务（POS / analyze / learn）
+.venv/bin/python -m src.api.server
+
+# RAG 服务（独立，GPU 0）
+CUDA_VISIBLE_DEVICES=0 .venv/bin/python -m src.api.rag_server
 ```
 
-### 2. 分析文本
-
-```python
-from src.api.grammar_api import GrammarAnalyzer
-
-analyzer = GrammarAnalyzer()
-result = analyzer.analyze("བོད་སྐད་དང་དབྱིན་སྐད་ཚལ་མཛོད")
-
-print(result.tokens)       # 分词结果
-print(result.pos_tags)     # 词性标注
-print(result.grammar)      # 语法分析
-```
-
-### 3. 启动前端
+### 前端
 
 ```bash
-streamlit run app/main.py
+cd frontend
+npm install
+npm run dev
 ```
 
-### 4. 训练模型
+访问 `http://localhost:5173`。
+
+### CLI
 
 ```bash
-python scripts/train_tibert.py --data data/corpus/annotated
+tibert analyze "བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"
+# POS 标注 + 语法解释
+
+tibert pos "བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"
+# 仅 POS 标注（毫秒级）
+
+tibert serve --port 8000
+# 启动 REST API
 ```
 
-## 数据库
+---
 
-包含以下藏文文献：
-- eKangyur (甘珠尔)
-- DharmaDownload
-- DrikungChetsang
-- GuruLamaWorks
-- KarmaDelek
-- OCR 2017
-- PalriParkhang
-- Shechen
-- TulkuSangag
-- UCB-OCR
+## 模型
 
-## 开发计划
+| 模型 | 描述 |
+|------|------|
+| **TiBERT** | McGill 原始藏文 BERT 基座 |
+| **TiBERT-classical-spm-500k** | 在 500k 古典藏文语料上继续 MLM，SentencePiece 32k vocab |
+| **POS Classifier** | BERT-CRF，冻结前 9 层，微调最后 3 层 + 分类头，36 类 |
 
-详见 [开发计划文档](./开发计划文档.md)
+### 训练 POS 分类器
+
+```bash
+# 1. 准备数据集
+.venv/bin/python scripts/prepare_pos_dataset.py
+
+# 2. 训练
+.venv/bin/python scripts/train_pos_classifier.py
+```
+
+---
+
+## 实验结果（SegPOS，120,853 token，77 类）
+
+| 指标 | 数值 |
+|------|------|
+| 加权 F1 | 0.825 |
+| 宏平均 F1 | 0.659 |
+| **加权-宏差距** | **68.5 pp** |
+| 格助词（闭词类）F1 | 0.954 |
+| 形容词（开放词类）F1 | 0.269 |
+
+> **诊断结论**：闭词类（助词）已接近解决；开放词类（形容词、稀有名词子类）严重失败。聚合加权 F1 掩盖了对低频形态类别的系统性失效。
+
+---
+
+## API 端点
+
+### 主服务（port 8000）
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | `/health` | 健康检查 |
+| POST | `/pos` | gemma few-shot POS 标注 |
+| POST | `/analyze` | 完整分析（POS + LLM 解释） |
+| POST | `/segment` | gemma 藏文分词 |
+| POST | `/learn/particles` | 格助词学习数据 |
+| POST | `/learn/verbs` | 动词学习数据 |
+| POST | `/learn/drill` | gemma 生成练习题 |
+| POST | `/learn/check` | gemma 评分 |
+| GET | `/corpus/stats` | 语料库统计 |
+
+### RAG 服务（port 8000）
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| POST | `/rag` | RAG 问答（ChromaDB + gemma） |
+| POST | `/rag/retrieval` | 仅向量检索 |
+| POST | `/segment` | 藏文音节分词 |
+| POST | `/lookup` | 词典查询 |
+| GET | `/rag/stats` | 索引统计 |
+
+---
+
+## 论文
+
+```bash
+# 编译论文
+PATH="/mnt/drive1/chenhao/texlive/bin/x86_64-linux:$PATH" xelatex paper.tex
+```
+
+- **字体**：Noto Serif CJK SC（中文正文）+ Noto Serif Tibetan（藏文音节）
+- **12 页**，xelatex 编译零错误
+- 图表：`charts/per_category_f1.png`、`charts/case_particle_f1.png`、`charts/performance_comparison.png`
