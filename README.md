@@ -207,14 +207,3 @@ tibert serve --port 8000
 | GET | `/rag/stats` | 索引统计 |
 
 ---
-
-## 论文
-
-```bash
-# 编译论文
-PATH="/mnt/drive1/chenhao/texlive/bin/x86_64-linux:$PATH" xelatex paper.tex
-```
-
-- **字体**：Noto Serif CJK SC（中文正文）+ Noto Serif Tibetan（藏文音节）
-- **12 页**，xelatex 编译零错误
-- 图表：`charts/per_category_f1.png`、`charts/case_particle_f1.png`、`charts/performance_comparison.png`
