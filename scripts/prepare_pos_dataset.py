@@ -5,7 +5,7 @@ Parses the full SegPOS corpus and aligns with the SPM tokenizer.
 No label simplification — all 91 raw tags preserved.
 """
 
-import os, sys, re, json, random, glob
+import os, sys, re, json, random, glob, argparse
 from pathlib import Path
 from collections import Counter
 
@@ -20,9 +20,9 @@ SPM_MODEL   = Path(__file__).parent.parent / "model" / "TiBERT-classical-spm-500
 OUTPUT_DIR  = Path(__file__).parent.parent / "data" / "corpus" / "pos_dataset"
 LABEL_MAP_FILE = OUTPUT_DIR / "label_map.json"
 
-MAX_SENTS_PER_COLLECTION = None   # 全量数据
 RANDOM_SEED = 42
 TRAIN_RATIO = 0.8
+DEV_RATIO   = 0.1
 DEV_RATIO   = 0.1
 TEST_RATIO  = 0.1
 
@@ -129,9 +129,19 @@ class PosDataset(Dataset):
 
 def main():
     import time
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-sents", type=int, default=None, help="Max sentences per collection (default: all)")
+    parser.add_argument("--output-dir", type=str, default=None, help="Override output directory")
+    args = parser.parse_args()
+
+    output_dir = Path(args.output_dir) if args.output_dir else OUTPUT_DIR
+    max_sents = args.max_sents
+
     t0 = time.time()
     print("=" * 60)
     print("  SegPOS Dataset — Full Raw Labels (Streaming)")
+    if max_sents:
+        print(f"  Limit: {max_sents:,} sentences per collection")
     print("=" * 60)
 
     print("\n[1] Loading tokenizer...")
@@ -158,6 +168,8 @@ def main():
         for f in files:
             with open(f, encoding="utf-8", errors="ignore") as fh:
                 for line in fh:
+                    if max_sents and coll_sents >= max_sents:
+                        break
                     pairs = parse_segpos_line(line)
                     if not pairs or len(pairs) < 2:
                         skipped += 1
@@ -174,8 +186,12 @@ def main():
                     for lid in labels:
                         tag_stats[ID_TO_LABEL[lid]] += 1
                     coll_sents += 1
-            n_files += 1
+            if max_sents and coll_sents >= max_sents:
+                break
+        n_files += 1
         print(f"  {coll_name}: {coll_sents} sentences", flush=True)
+        if max_sents and len(all_records) >= max_sents * len(coll_files):
+            break
 
     print(f"\nTotal records: {len(all_records):,}  (skipped {skipped:,})  [{time.time()-t0:.0f}s]")
     print("\nTop-25 labels:")
@@ -196,7 +212,8 @@ def main():
     print(f"  train={n_train:,}, dev={n_dev:,}, test={n - n_train - n_dev:,}")
 
     print("\n[4] Saving numpy arrays...", flush=True)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(args.output_dir) if args.output_dir else OUTPUT_DIR
+    output_dir.mkdir(parents=True, exist_ok=True)
     for split_name, (data, ids_key, labs_key) in splits.items():
         if not data:
             print(f"  Skipping {split_name} (empty)")
@@ -211,15 +228,15 @@ def main():
         for i, r in enumerate(data):
             ids_arr[i, :min(len(r[ids_key]), max_len)] = r[ids_key][:max_len]
             labs_arr[i, :min(len(r[labs_key]), max_len)] = r[labs_key][:max_len]
-        np.save(OUTPUT_DIR / f"{split_name}_input_ids.npy", ids_arr)
-        np.save(OUTPUT_DIR / f"{split_name}_labels.npy",     labs_arr)
+        np.save(output_dir / f"{split_name}_input_ids.npy", ids_arr)
+        np.save(output_dir / f"{split_name}_labels.npy",     labs_arr)
         print(f"    Saved {split_name}: {ids_arr.shape}  ({time.time()-t0:.0f}s elapsed)")
 
     # Metadata (first 100k of train only)
     print("\n[5] Saving metadata...", flush=True)
     for split_name, (data, _, _) in splits.items():
         limit = 100_000 if split_name == "train" else 20_000
-        with open(OUTPUT_DIR / f"{split_name}_meta.jsonl", "w", encoding="utf-8") as f:
+        with open(output_dir / f"{split_name}_meta.jsonl", "w", encoding="utf-8") as f:
             for r in data[:limit]:
                 json.dump({"tokens": r["tokens"] if "tokens" in r else [], "collection": ""}, f, ensure_ascii=False)
                 f.write("\n")

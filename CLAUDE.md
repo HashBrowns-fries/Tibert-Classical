@@ -47,18 +47,24 @@ tibert segment "བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"
 
 Start: `tibert serve` (or `.venv/bin/python -m src.api.server`)
 
+> **Note**: TiBERT POS 分类器已弃用。`/pos` `/analyze` `/segment` 全部基于 gemma-2-mitra-it（vLLM, GPU 0）。
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | 健康检查 |
-| POST | `/pos` | POS 标注 |
-| POST | `/analyze` | 完整分析（+LLM） |
-| POST | `/segment` | 分词 |
+| POST | `/pos` | POS 标注（gemma few-shot） |
+| POST | `/analyze` | 完整分析（POS + LLM） |
+| POST | `/segment` | 分词（gemma） |
+| POST | `/gemma/pos` | Gemma POS 标注 |
+| POST | `/gemma/segment` | Gemma 分词 |
+| POST | `/gemma/lookup` | Gemma 分词 + 词典查询 |
+| POST | `/rag` | ChromaDB RAG 问答 |
 | GET | `/corpus/stats` | 语料库统计 |
 
 **Request/Response examples:**
 
 ```bash
-# POS 标注
+# POS 标注（gemma few-shot）
 curl -X POST http://localhost:8000/pos \
   -H "Content-Type: application/json" \
   -d '{"text":"བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"}'

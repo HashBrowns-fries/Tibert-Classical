@@ -1,21 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAnalysis } from '../hooks/useAnalysis';
 import { useAnalysisStore } from '../stores/analysisStore';
 import { TokenDisplay } from '../components/TokenDisplay';
 import { GrammarPanel } from '../components/GrammarPanel';
-import type { AnalyzeResponse, LookupResponse } from '../types/api';
+import type { AnalyzeResponse, LookupEntry } from '../types/api';
 
+// Module-level dict color helper (used by DictPanel too)
+const _DICT_COLORS: Record<string, string> = {
+  RangjungYeshe: '#c084fc',
+  MonlamTibEng: '#60a5fa',
+  MonlamTibetan: '#60a5fa',
+  DagYig: '#34d399',
+  BodDag: '#fbbf24',
+};
+function _dictColor(dictName: string): string {
+  for (const [k, v] of Object.entries(_DICT_COLORS)) {
+    if (dictName.includes(k)) return v;
+  }
+  return '#d4a853';
+}
 
 export function AnalyzerPage() {
   const location = useLocation();
   const { current, isLoading, error, history } = useAnalysisStore();
-  const { analyze, lookup } = useAnalysis();
+  const { analyze } = useAnalysis();
   const [inputText, setInputText] = useState('');
   const [useLlm, setUseLlm] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [dictEntries, setDictEntries] = useState<Record<string, LookupEntry[]>>({});
 
-  // 从其他页面跳转时预填
+  // Example sentences for first-time users
+const EXAMPLE_SENTENCES = [
+  { text: 'བདག་གི་ཕ་མ་ལ་སོང་', label: '属格 · 为格示例' },
+  { text: 'བོད་གི་ཡུལ་ལྷོ་ལ་སོང་', label: '经典例句' },
+];
+
+// 从其他页面跳转时预填
   useEffect(() => {
     const state = location.state as { text?: string } | null;
     if (state?.text) {
@@ -28,14 +49,32 @@ export function AnalyzerPage() {
   const handleAnalyze = useCallback(
     async (text: string, useLlmVal = useLlm) => {
       if (!text.trim()) return;
+      setDictEntries({}); // clear old dict entries
       await analyze(text.trim(), useLlmVal);
     },
     [analyze, useLlm]
   );
 
-  const syllablesOnly = current?.tokens.filter(
-    t => t.token !== '་' && t.token !== '།'
-  ) ?? [];
+  // When a new result arrives, merge dict entries from tokens (backend dict lookup)
+  // with any additional entries from frontend /lookup calls (supplementary cache)
+  useEffect(() => {
+    if (!current) return;
+    const tokens = current.tokens.filter(t => t.token !== '་' && t.token !== '།' && t.token !== '༔');
+    const newEntries: Record<string, LookupEntry[]> = {};
+    for (const t of tokens) {
+      if (!newEntries[t.token]) {
+        // Prefer backend dict_entries, fallback to frontend state cache
+        newEntries[t.token] = (t.dict_entries && t.dict_entries.length > 0)
+          ? t.dict_entries
+          : (dictEntries[t.token] ?? []);
+      }
+    }
+    setDictEntries(prev => ({ ...prev, ...newEntries }));
+    // Scroll to results on desktop (mobile users are already at top)
+    if (window.innerWidth > 900) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [current]);
 
   return (
     <div
@@ -74,25 +113,22 @@ export function AnalyzerPage() {
           className="animate-fade-up delay-200"
           style={{ fontSize: '0.85rem', color: '#8b8070', fontFamily: 'var(--font-sans)' }}
         >
-          TiBERT 模型自动标注词性 · DashScope LLM 生成语法解释
+          lotsawa + TiBERT 分词标注 · MiniMax 语法解释
         </p>
       </div>
 
-      {/* Main content: split panel */}
+{/* Main content: split panel */}
       <div
+        className="analyzer-grid"
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '0',
-          maxWidth: '1400px',
-          margin: '0 auto',
+          width: '100%',
           padding: '1.5rem 2rem',
         }}
       >
         {/* ── LEFT: Input ── */}
         <div
           className="animate-fade-up"
-          style={{ paddingRight: '1.5rem', borderRight: '1px solid rgba(255,255,255,0.05)' }}
+          style={{ minWidth: 0 }}
         >
           {/* Tibetan text input */}
           <div style={{ marginBottom: '1.25rem' }}>
@@ -136,6 +172,47 @@ export function AnalyzerPage() {
               <span>{inputText.length} 字符</span>
               <span>Ctrl+Enter 分析</span>
             </div>
+
+            {/* Example sentences — only shown when input is empty */}
+            {!inputText && (
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.375rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', color: '#4a4540', fontFamily: 'var(--font-sans)', marginRight: '0.25rem' }}>示例：</span>
+                {EXAMPLE_SENTENCES.map((ex) => (
+                  <button
+                    key={ex.text}
+                    onClick={() => {
+                      setInputText(ex.text);
+                      handleAnalyze(ex.text);
+                    }}
+                    style={{
+                      background: 'rgba(201,74,74,0.08)',
+                      border: '1px solid rgba(201,74,74,0.2)',
+                      borderRadius: '99px',
+                      padding: '0.2rem 0.625rem',
+                      cursor: 'pointer',
+                      color: 'rgba(201,74,74,0.7)',
+                      fontSize: '0.68rem',
+                      fontFamily: 'var(--font-sans)',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(201,74,74,0.15)';
+                      (e.currentTarget as HTMLElement).style.color = '#c94a4a';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(201,74,74,0.08)';
+                      (e.currentTarget as HTMLElement).style.color = 'rgba(201,74,74,0.7)';
+                    }}
+                  >
+                    <span className="tibetan" style={{ fontSize: '0.8rem' }}>{ex.text}</span>
+                    <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>({ex.label})</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Controls */}
@@ -152,7 +229,7 @@ export function AnalyzerPage() {
                   gap: '0.3rem',
                 }}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                 </svg>
                 LLM 解释
@@ -199,14 +276,14 @@ export function AnalyzerPage() {
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin-slow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg className="animate-spin-slow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                   </svg>
                   分析中…
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                   </svg>
                   分析
@@ -221,7 +298,7 @@ export function AnalyzerPage() {
               disabled={!inputText}
               style={{ padding: '0.625rem 0.875rem' }}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -263,7 +340,7 @@ export function AnalyzerPage() {
                 <svg
                   className="w-4 h-4 transition-transform"
                   style={{ transform: historyOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -326,10 +403,10 @@ export function AnalyzerPage() {
         {/* ── RIGHT: Results ── */}
         <div
           className="animate-fade-up delay-200"
-          style={{ paddingLeft: '1.5rem' }}
+          style={{ minWidth: 0 }}
         >
           {current ? (
-            <ResultView result={current} loading={isLoading} lookup={lookup} />
+            <ResultView result={current} loading={isLoading} dictEntries={dictEntries} />
           ) : (
             <div className="empty-state">
               <div className="empty-state-icon">
@@ -354,8 +431,11 @@ export function AnalyzerPage() {
   );
 }
 
-function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; loading: boolean; lookup: (word: string, dictName?: string, includeVerbs?: boolean) => Promise<LookupResponse> }) {
-  const syllablesOnly = result.tokens.filter(t => t.token !== '་' && t.token !== '།');
+function ResultView({ result, loading, dictEntries }: {
+  result: AnalyzeResponse;
+  loading: boolean;
+  dictEntries: Record<string, LookupEntry[]>;
+}) {
   const caseParticles = result.tokens.filter(t => t.is_case_particle);
   const stats = result.stats;
 
@@ -447,15 +527,15 @@ function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; load
           </span>
         </div>
         <div className="panel-body" style={{ padding: '1.25rem' }}>
-          <TokenDisplay tokens={result.tokens} />
+          <TokenDisplay tokens={result.tokens} dictEntries={dictEntries} />
         </div>
       </div>
 
       {/* 词典释义 */}
-      <DictPanel tokens={result.tokens} lookup={lookup} />
+      <DictPanel tokens={result.tokens} dictEntries={dictEntries} />
 
       {/* Case particles */}
-      {caseParticles.length > 0 && (
+      {caseParticles.length > 0 ? (
         <div className="panel-section">
           <div className="panel-header">
             <span
@@ -524,6 +604,22 @@ function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; load
             ))}
           </div>
         </div>
+      ) : (
+        stats.case_particles === 0 && stats.syllable_count > 0 && (
+          <div
+            className="panel-section"
+            style={{ opacity: 0.5 }}
+          >
+            <div className="panel-header">
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#d97706', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'var(--font-sans)' }}>
+                ★ 格助词
+              </span>
+            </div>
+            <div style={{ padding: '0.875rem 1.25rem', fontSize: '0.8rem', color: '#4a4540', fontFamily: 'var(--font-sans)' }}>
+              本句未检测到格助词（属格 / 作格 / 为格 / 离格等）
+            </div>
+          </div>
+        )
       )}
 
       {/* LLM explanation */}
@@ -543,7 +639,7 @@ function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; load
             try { navigator.clipboard?.writeText(JSON.stringify(result, null, 2)); } catch(e) {}
           }}
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
           </svg>
           复制 JSON
@@ -558,7 +654,7 @@ function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; load
             try { navigator.clipboard?.writeText(text); } catch(e) {}
           }}
         >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
           </svg>
           复制标注
@@ -572,84 +668,23 @@ function ResultView({ result, loading, lookup }: { result: AnalyzeResponse; load
 
 interface DictPanelProps {
   tokens: AnalyzeResponse['tokens'];
-  lookup: (word: string, dictName?: string) => Promise<LookupResponse>;
+  dictEntries: Record<string, LookupEntry[]>;
 }
 
-interface TokenDictResult {
-  token: string;
-  pos_zh: string;
-  is_case: boolean;
-  entries: { dict_name: string; definition: string }[];
-  verb_entries?: { headword: string; present?: string; past?: string; future?: string; imperative?: string; meaning?: string }[];
-  loading: boolean;
-  error?: string;
-}
-
-const DICT_COLORS: Record<string, string> = {
-  RangjungYeshe: '#d4a853',
-  DagYig: '#c94a4a',
-  Dungkar: '#a78bfa',
-  MonlamTibetan: '#2dd4bf',
-  MonlamTibEng: '#60a5fa',
-  MonlamEngTib: '#4ade80',
-};
-
-function getDictColor(name: string): string {
-  return DICT_COLORS[name] ?? '#8b8070';
-}
-
-function DictPanel({ tokens, lookup }: DictPanelProps) {
+function DictPanel({ tokens, dictEntries }: DictPanelProps) {
   const [open, setOpen] = useState(false);
-  const [results, setResults] = useState<TokenDictResult[] | null>(null);
-  const [loadingAll, setLoadingAll] = useState(false);
-  const fetched = useRef(false);
 
+  // Deduplicate tokens (keep first occurrence)
   const uniqueTokens = tokens.filter(
-    (t, i, arr) => t.token !== '་' && t.token !== '།' && arr.findIndex(x => x.token === t.token) === i
+    (t, i, arr) => t.token !== '་' && t.token !== '།' && t.token !== '༔' && arr.findIndex(x => x.token === t.token) === i
   );
-
-  async function doLookup() {
-    if (fetched.current) return;
-    fetched.current = true;
-    setLoadingAll(true);
-
-    setResults(
-      uniqueTokens.map(t => ({
-        token: t.token,
-        pos_zh: t.pos_zh,
-        is_case: t.is_case_particle,
-        entries: [],
-        loading: true,
-      }))
-    );
-
-    try {
-      const responses = await Promise.all(
-        uniqueTokens.map(async (t) => {
-          try {
-            const r = await lookup(t.token, undefined);
-            return { token: t.token, pos_zh: t.pos_zh, is_case: t.is_case_particle, entries: r.entries ?? [], verb_entries: r.verb_entries, loading: false };
-          } catch {
-            return { token: t.token, pos_zh: t.pos_zh, is_case: t.is_case_particle, entries: [], verb_entries: undefined, loading: false };
-          }
-        })
-      );
-      setResults(responses);
-    } finally {
-      setLoadingAll(false);
-    }
-  }
-
-  useEffect(() => {
-    if (open) doLookup();
-  }, [open]);
 
   const tokenKey = tokens.map(t => t.token).join('');
   useEffect(() => {
-    fetched.current = false;
-    setResults(null);
     setOpen(false);
   }, [tokenKey]);
+
+  // Count how many tokens have dictionary entries (tracked via tokenKey dep)
 
   return (
     <div
@@ -695,7 +730,7 @@ function DictPanel({ tokens, lookup }: DictPanelProps) {
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.25s ease',
           }}
-          viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
@@ -713,89 +748,51 @@ function DictPanel({ tokens, lookup }: DictPanelProps) {
             overflowY: 'auto',
           }}
         >
-          {loadingAll && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0', color: 'rgba(139,128,112,0.5)', fontSize: '0.75rem', fontFamily: 'var(--font-sans)' }}>
-              <svg style={{ width: '14px', height: '14px', animation: 'spin 1s linear infinite', color: '#d4a853' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path strokeLinecap="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              </svg>
-              查询词典中…
-            </div>
-          )}
-
-          {results?.map((r, i) => {
-            const hasDef = r.entries.length > 0 || (r.verb_entries && r.verb_entries.length > 0);
-            if (!hasDef && !r.loading) return null;
+          {uniqueTokens.map((t, i) => {
+            const entries = dictEntries[t.token] ?? [];
+            const hasDef = entries.length > 0;
 
             return (
               <div
-                key={r.token}
+                key={t.token}
                 className="animate-fade-up"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                  <span className="tibetan" style={{ fontWeight: 700, fontSize: '1rem', color: r.is_case ? '#d97706' : '#e8e0d0' }}>
-                    {r.token}
+                  <span className="tibetan" style={{ fontWeight: 700, fontSize: '1rem', color: t.is_case_particle ? '#d97706' : '#e8e0d0' }}>
+                    {t.token}
                   </span>
                   <span style={{ fontSize: '0.65rem', color: 'rgba(139,128,112,0.5)', fontFamily: 'var(--font-mono)' }}>
-                    {r.pos_zh}
+                    {t.pos_zh}
                   </span>
-                  {r.loading && (
-                    <svg style={{ width: '10px', height: '10px', animation: 'spin 1s linear infinite', color: 'rgba(139,128,112,0.4)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path strokeLinecap="round" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                    </svg>
-                  )}
                 </div>
 
-                {r.entries.slice(0, 3).map((e, j) => (
+                {hasDef ? entries.slice(0, 3).map((e, j) => (
                   <div
                     key={j}
                     style={{
                       display: 'flex',
                       gap: '0.5rem',
                       padding: '0.2rem 0.5rem',
-                      borderLeft: `2px solid ${getDictColor(e.dict_name)}44`,
+                      borderLeft: `2px solid ${_dictColor(e.dict_name)}44`,
                       marginBottom: '0.15rem',
                     }}
                   >
-                    <span style={{ fontSize: '0.6rem', fontFamily: 'var(--font-mono)', color: getDictColor(e.dict_name), opacity: 0.8, flexShrink: 0, paddingTop: '0.05rem', minWidth: '5rem' }}>
+                    <span style={{ fontSize: '0.6rem', fontFamily: 'var(--font-mono)', color: _dictColor(e.dict_name), opacity: 0.8, flexShrink: 0, paddingTop: '0.05rem', minWidth: '5rem' }}>
                       {e.dict_name}
                     </span>
                     <span style={{ fontSize: '0.75rem', color: 'rgba(232,224,208,0.75)', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
                       {e.definition.length > 120 ? e.definition.slice(0, 120) + '…' : e.definition}
                     </span>
                   </div>
-                ))}
-
-                {r.verb_entries && r.verb_entries.length > 0 && r.verb_entries.map((ve, k) => (
-                  <div
-                    key={k}
-                    style={{
-                      background: 'rgba(201,74,74,0.06)',
-                      border: '1px solid rgba(201,74,74,0.15)',
-                      borderRadius: '8px',
-                      padding: '0.375rem 0.625rem',
-                      marginTop: '0.2rem',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.65rem', color: '#c94a4a', fontFamily: 'var(--font-mono)', marginBottom: '0.2rem', fontWeight: 600 }}>
-                      动词词干 · {ve.headword}
-                    </div>
-                    {ve.present && <div style={{ fontSize: '0.72rem', color: '#2dd4bf', fontFamily: 'var(--font-sans)' }}>现在: {ve.present}</div>}
-                    {ve.past && <div style={{ fontSize: '0.72rem', color: '#f87171', fontFamily: 'var(--font-sans)' }}>过去: {ve.past}</div>}
-                    {ve.future && <div style={{ fontSize: '0.72rem', color: '#60a5fa', fontFamily: 'var(--font-sans)' }}>将来: {ve.future}</div>}
-                    {ve.imperative && <div style={{ fontSize: '0.72rem', color: '#fbbf24', fontFamily: 'var(--font-sans)' }}>命令: {ve.imperative}</div>}
-                    {ve.meaning && <div style={{ fontSize: '0.72rem', color: 'rgba(139,128,112,0.7)', fontFamily: 'var(--font-sans)', marginTop: '0.15rem' }}>{ve.meaning}</div>}
+                )) : (
+                  <div style={{ fontSize: '0.72rem', color: '#4a4540', fontStyle: 'italic', paddingLeft: '0.5rem', fontFamily: 'var(--font-sans)' }}>
+                    词典未收录
                   </div>
-                ))}
+                )}
               </div>
             );
           })}
-
-          {results && !loadingAll && results.filter(r => r.entries.length > 0 || (r.verb_entries && r.verb_entries.length > 0)).length === 0 && (
-            <div style={{ textAlign: 'center', padding: '1.5rem', color: 'rgba(139,128,112,0.4)', fontSize: '0.8rem', fontFamily: 'var(--font-sans)' }}>
-              未找到词典释义
-            </div>
-          )}
         </div>
       )}
     </div>

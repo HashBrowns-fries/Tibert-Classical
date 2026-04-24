@@ -75,7 +75,7 @@ class TibetanSentencePieceTrainer:
             model_name: 输出模型名前缀
         """
         # 训练参数
-        spm.train(
+        spm.SentencePieceTrainer.train(
             input=str(train_file),
             model_prefix=str(self.output_dir / model_name),
             vocab_size=vocab_size,
@@ -89,7 +89,6 @@ class TibetanSentencePieceTrainer:
             unk_piece='<unk>',
             bos_piece='<s>',
             eos_piece='</s>',
-            train_extremely_large_archive=True,  # 大语料支持
         )
 
         model_file = self.output_dir / f"{model_name}.model"
@@ -163,6 +162,8 @@ def main():
     parser.add_argument('--model_type', type=str, default='unigram',
                         choices=['unigram', 'bpe', 'char', 'word'],
                         help='SentencePiece model type')
+    parser.add_argument('--character_coverage', type=float, default=0.9995,
+                        help='Character coverage (0.9995-1.0, 1.0=all chars)')
     parser.add_argument('--train_only', action='store_true',
                         help='Only train, skip encoding')
 
@@ -189,7 +190,8 @@ def main():
     model_file = trainer.train(
         train_file=train_file,
         vocab_size=args.vocab_size,
-        model_type=args.model_type
+        model_type=args.model_type,
+        character_coverage=args.character_coverage,
     )
 
     # 4. 编码语料 (可选)

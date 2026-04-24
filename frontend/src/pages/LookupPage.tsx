@@ -1,271 +1,184 @@
-import { useState, useCallback } from 'react';
-import { useAnalysis } from '../hooks/useAnalysis';
-import type { LookupResponse, LookupEntry, VerbEntry } from '../types/api';
-
-const AVAILABLE_DICTS = [
-  { key: '', label: '全部词典' },
-  { key: 'RangjungYeshe', label: 'Rangjung Yeshe' },
-  { key: 'DagYig', label: 'Dag Yig' },
-  { key: 'Dungkar', label: 'Dungkar' },
-  { key: 'MonlamTibetan', label: 'Monlam 藏藏' },
-  { key: 'MonlamTibEng', label: 'Monlam 藏英' },
-  { key: 'tibChinmo', label: '藏汉摩庄' },
-  { key: 'HanTb', label: '汉藏' },
-  { key: 'dz-en', label: '宗卡英' },
-  { key: 'dzongkha', label: '宗卡语' },
-];
+import { useState } from 'react';
+import { useLookup } from '../hooks/useLookup';
+import type { LookupEntry } from '../types/api';
 
 const DICT_COLORS: Record<string, { accent: string; bg: string }> = {
-  RangjungYeshe: { accent: '#c94a4a', bg: 'rgba(201,74,74,0.08)' },
-  DagYig:        { accent: '#d97706', bg: 'rgba(217,119,6,0.08)' },
-  Dungkar:       { accent: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
-  MonlamTibetan:{ accent: '#0d9488', bg: 'rgba(13,148,136,0.08)' },
-  MonlamTibEng: { accent: '#2563eb', bg: 'rgba(37,99,235,0.08)' },
-  tibChinmo:     { accent: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
-  HanTb:         { accent: '#9333ea', bg: 'rgba(147,51,234,0.08)' },
-  'dz-en':       { accent: '#0284c7', bg: 'rgba(2,132,199,0.08)' },
-  dzongkha:      { accent: '#d97706', bg: 'rgba(217,119,6,0.08)' },
-  default:       { accent: '#8b8070', bg: 'rgba(139,128,112,0.08)' },
+  RangjungYeshe:  { accent: '#c94a4a', bg: 'rgba(201,74,74,0.08)' },
+  DagYig:         { accent: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+  Dungkar:        { accent: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
+  MonlamTibetan: { accent: '#0d9488', bg: 'rgba(13,148,136,0.08)' },
+  MonlamTibEng:  { accent: '#2563eb', bg: 'rgba(37,99,235,0.08)' },
+  tibChinmo:      { accent: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
+  HanTb:          { accent: '#9333ea', bg: 'rgba(147,51,234,0.08)' },
+  'dz-en':        { accent: '#0284c7', bg: 'rgba(2,132,199,0.08)' },
+  dzongkha:       { accent: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+  default:        { accent: '#8b8070', bg: 'rgba(139,128,112,0.08)' },
 };
 
-function getDictColor(dictName: string) {
-  return DICT_COLORS[dictName] ?? DICT_COLORS['default'];
+function getDictColor(name: string) {
+  return DICT_COLORS[name] ?? DICT_COLORS['default'];
 }
 
 export function LookupPage() {
-  const { lookup } = useAnalysis();
-  const [query, setQuery] = useState('');
-  const [selectedDict, setSelectedDict] = useState('');
-  const [includeVerbs, setIncludeVerbs] = useState(true);
-  const [result, setResult] = useState<LookupResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { lookup, clear, loading, lookupResult, ragAnswer, ragChunks, retrieveTime, error } = useLookup();
+  const [text, setText] = useState('');
 
-  const handleSearch = useCallback(
-    async (e?: React.FormEvent) => {
-      e?.preventDefault();
-      if (!query.trim()) return;
-      setLoading(true);
-      setError(null);
-      setResult(null);
-      try {
-        const res = await lookup(
-          query.trim(),
-          selectedDict || undefined,
-          includeVerbs
-        );
-        setResult(res);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [query, selectedDict, includeVerbs, lookup]
-  );
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!text.trim()) return;
+    lookup(text.trim());
+  };
 
   return (
     <div className="bg-grad-hero" style={{ minHeight: 'calc(100vh - 60px)' }}>
       {/* Header */}
-      <div
-        style={{
-          padding: '2.5rem 3rem 1.5rem',
-          borderBottom: '1px solid rgba(255,255,255,0.04)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '1.5rem', marginBottom: '0.5rem' }}>
-          <h1
-            className="font-display animate-fade-up"
-            style={{ fontSize: '2.25rem', fontWeight: 700, color: '#e8e0d0', letterSpacing: '-0.01em', lineHeight: 1.1 }}
-          >
-            藏文词典
-          </h1>
-          <div
-            className="tibetan-xl animate-fade-up delay-100"
-            style={{ color: 'rgba(212,168,83,0.6)', fontFamily: 'var(--font-tibetan)' }}
-          >
+      <div style={{ padding: '2rem 2.5rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <h1 className="font-display animate-fade-up"
+          style={{ fontSize: '2rem', fontWeight: 700, color: '#e8e0d0', marginBottom: '0.25rem' }}>
+          藏文词典
+          <span style={{ marginLeft: '0.75rem', fontSize: '1.25rem', opacity: 0.5, fontFamily: 'var(--font-tibetan)' }}>
             ཚིག་ཐ་མ་གཅད་གཅོད
-          </div>
-        </div>
-        <p
-          className="animate-fade-up delay-200"
-          style={{ fontSize: '0.85rem', color: '#8b8070', fontFamily: 'var(--font-sans)' }}
-        >
-          12 部藏文词典 · 2,489 动词词干形态 · StarDict 即时查询
+          </span>
+        </h1>
+        <p style={{ fontSize: '0.8rem', color: '#8b8070' }}>
+          gemma-2-mitra-it 分词 · SQLite 词典（541,618 条）· RAG 佛典释义
         </p>
       </div>
 
-      {/* Search */}
-      <form
-        onSubmit={handleSearch}
-        className="animate-fade-up delay-200"
-        style={{ padding: '1.5rem 2rem 0', maxWidth: '1400px', margin: '0 auto' }}
-      >
-        {/* Query input */}
-        <div style={{ position: 'relative', marginBottom: '1rem' }}>
-          <div
-            style={{
-              position: 'absolute',
-              left: '1rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#4a4540',
-              pointerEvents: 'none',
-            }}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-          </div>
+      {/* Input */}
+      <form onSubmit={handleSubmit} style={{ padding: '1.25rem 2.5rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
           <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="输入藏文词语或动词词干（Wylie 罗马字，如 kum, ker）"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="输入藏文，例如：བོད་གི་ཡུལ་ལྷོ་ལ་སོང་"
             className="input-tibetan"
-            style={{
-              paddingLeft: '2.75rem',
-              paddingRight: '9rem',
-              fontSize: '1.2rem',
-              paddingTop: '0.875rem',
-              paddingBottom: '0.875rem',
-            }}
+            style={{ flex: 1, fontSize: '1.1rem', padding: '0.75rem 1rem' }}
           />
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={loading || !query.trim()}
-            style={{
-              position: 'absolute',
-              right: '0.5rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-            }}
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin-slow w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" strokeLinecap="round" />
-                </svg>
-                查询中…
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                </svg>
-                查询
-              </>
-            )}
+          <button type="submit" disabled={loading || !text.trim()} className="btn-primary">
+            {loading ? '⏳ 分词中…' : '🔍 查询'}
           </button>
-        </div>
-
-        {/* Dict selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-          <span
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#8b8070',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              fontFamily: 'var(--font-sans)',
-              flexShrink: 0,
-            }}
-          >
-            词典
-          </span>
-          {AVAILABLE_DICTS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSelectedDict(key)}
-              className={`btn-chip ${selectedDict === key ? 'active' : ''}`}
-            >
-              {label}
+          {lookupResult && (
+            <button type="button" onClick={clear} className="btn-primary"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#8b8070', boxShadow: 'none' }}>
+              清空
             </button>
-          ))}
+          )}
         </div>
-
-        {/* Verb lexicon toggle */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-          <div
-            style={{
-              width: '36px',
-              height: '20px',
-              borderRadius: '99px',
-              background: includeVerbs ? '#c94a4a' : 'rgba(255,255,255,0.1)',
-              border: 'none',
-              cursor: 'pointer',
-              position: 'relative',
-              transition: 'background 0.2s ease',
-            }}
-            onClick={() => setIncludeVerbs(v => !v)}
-          >
-            <span
-              style={{
-                display: 'block',
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                background: 'white',
-                position: 'absolute',
-                top: '2px',
-                left: includeVerbs ? '18px' : '2px',
-                transition: 'left 0.2s ease',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-              }}
-            />
-          </div>
-          <span style={{ fontSize: '0.8rem', color: '#8b8070', fontFamily: 'var(--font-sans)' }}>
-            同时查询动词词干词典（Wylie 罗马字）
-          </span>
-        </label>
       </form>
 
       {/* Error */}
       {error && (
-        <div
-          style={{
-            margin: '1rem 2rem 0',
-            padding: '0.75rem 1rem',
-            borderRadius: '0.75rem',
-            background: 'rgba(220,38,38,0.1)',
-            border: '1px solid rgba(220,38,38,0.2)',
-            color: '#f87171',
-            fontSize: '0.85rem',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: '1400px',
-            marginLeft: 'auto',
-            marginRight: 'auto',
-          }}
-        >
+        <div style={{ margin: '1rem 2.5rem', padding: '0.75rem 1rem', borderRadius: '10px',
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: '0.85rem' }}>
           ⚠️ {error}
         </div>
       )}
 
-      {/* Results */}
-      {result && (
-        <LookupResultView result={result} />
+      {/* Syllable chips */}
+      {lookupResult && lookupResult.syllables.length > 0 && (
+        <div style={{ padding: '1rem 2.5rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.7rem', color: '#8b8070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
+              音节
+            </span>
+            {lookupResult.syllables.map((s, i) => (
+              <span
+                key={i}
+                className="tibetan"
+                style={{
+                  padding: '0.25rem 0.625rem',
+                  borderRadius: '8px',
+                  background: 'rgba(201,74,74,0.1)',
+                  border: '1px solid rgba(201,74,74,0.25)',
+                  color: '#e8d0c0',
+                  fontSize: '1rem',
+                  fontFamily: 'var(--font-tibetan)',
+                }}
+              >
+                {s}
+              </span>
+            ))}
+            <span style={{ fontSize: '0.7rem', color: '#4a4540', marginLeft: '0.5rem' }}>
+              {lookupResult.total} 条词典释义
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Main content: dict + RAG */}
+      {lookupResult && (
+        <div style={{ display: 'grid', gridTemplateColumns: lookupResult.total > 0 ? '1fr 380px' : '1fr', height: 'calc(100vh - 280px)' }}>
+          {/* Left: dictionary entries */}
+          {lookupResult.total > 0 && (
+            <DictEntries entries={lookupResult.entries} />
+          )}
+
+          {/* Right: RAG answer */}
+          {(ragAnswer || ragChunks.length > 0) && (
+            <div style={{ padding: '1.5rem', borderLeft: '1px solid rgba(255,255,255,0.04)', overflowY: 'auto' }}>
+              {retrieveTime !== null && (
+                <div style={{ fontSize: '0.7rem', color: '#8b8070', marginBottom: '0.75rem' }}>
+                  ⏱ {retrieveTime.toFixed(1)}s · {ragChunks.length} 相关片段
+                </div>
+              )}
+              {ragAnswer && (
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#8b8070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
+                    gemma RAG 释义
+                  </div>
+                  <div style={{
+                    padding: '1rem 1.25rem', borderRadius: '12px',
+                    background: 'rgba(201,74,74,0.06)',
+                    border: '1px solid rgba(201,74,74,0.15)',
+                    color: '#c8c0b0', fontSize: '0.875rem', lineHeight: 1.7,
+                    fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap',
+                  }}>
+                    {ragAnswer}
+                  </div>
+                </div>
+              )}
+              {ragChunks.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.7rem', color: '#8b8070', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
+                    相关佛典片段
+                  </div>
+                  {ragChunks.map((c, i) => (
+                    <div key={i} style={{
+                      padding: '0.75rem 1rem', borderRadius: '10px', marginBottom: '0.5rem',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                      fontSize: '0.75rem',
+                    }}>
+                      <div style={{ color: '#8b8070', marginBottom: '0.25rem' }}>
+                        [{i+1}] {c.source} · dist={c.distance.toFixed(2)}
+                      </div>
+                      <div style={{ color: '#c4b8a8', lineHeight: 1.6 }} className="tibetan">
+                        {c.text.length > 200 ? c.text.slice(0, 200) + '…' : c.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Empty state */}
-      {!result && !loading && !error && (
-        <div className="empty-state" style={{ maxWidth: '1400px', margin: '2rem auto', padding: '3rem 2rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.25 }}>
-            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <rect x="10" y="6" width="44" height="52" rx="4" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M10 14h44" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M20 28h8M20 36h16M20 44h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-              <circle cx="50" cy="52" r="10" fill="var(--color-gold)" opacity="0.1" stroke="var(--color-gold)" strokeWidth="1.5" />
-              <path d="M47 52h6M50 49v6" stroke="var(--color-gold)" strokeWidth="1.5" strokeLinecap="round" />
+      {!lookupResult && !loading && !error && (
+        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#4a4540' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.3 }}>
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
           </div>
-          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: '#8b8070', marginBottom: '0.25rem' }}>
-            输入词语开始查询
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: '#8b8070' }}>
+            输入藏文，查询词典释义
           </p>
-          <p style={{ fontSize: '0.8rem', color: '#4a4540', fontFamily: 'var(--font-sans)' }}>
-            例如：<span className="tibetan" style={{ color: '#d97706' }}>བོད</span>、 kum、 ker、 dkar
+          <p style={{ fontSize: '0.8rem', color: '#4a4540', marginTop: '0.5rem' }}>
+            例如：<span className="tibetan" style={{ color: '#c94a4a' }}>བོད</span> · 7 部词典 · 541,618 条
           </p>
         </div>
       )}
@@ -273,248 +186,55 @@ export function LookupPage() {
   );
 }
 
-function LookupResultView({ result }: { result: LookupResponse }) {
-  const { entries, verb_entries } = result;
-
-  if (entries.length === 0 && (!verb_entries || verb_entries.length === 0)) {
-    return (
-      <div
-        className="animate-fade-up"
-        style={{
-          maxWidth: '1400px',
-          margin: '2rem auto',
-          padding: '0 2rem',
-        }}
-      >
-        <div
-          style={{
-            padding: '2rem',
-            borderRadius: '1rem',
-            background: 'rgba(139,128,112,0.06)',
-            border: '1px solid rgba(139,128,112,0.1)',
-            textAlign: 'center',
-            color: '#8b8070',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          未找到「{result.word}」的释义
-        </div>
-      </div>
-    );
+function DictEntries({ entries }: { entries: LookupEntry[] }) {
+  // Group entries by word
+  const byWord: Record<string, typeof entries> = {};
+  for (const e of entries) {
+    const key = e.word ?? '(无音节)';
+    if (!byWord[key]) byWord[key] = [];
+    byWord[key].push(e);
   }
+  const words = Object.keys(byWord);
 
   return (
-    <div
-      className="animate-fade-up"
-      style={{ maxWidth: '1400px', margin: '1.5rem auto', padding: '0 2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
-    >
-      {/* Dictionary entries */}
-      {entries.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              marginBottom: '1rem',
-            }}
-          >
-            <svg style={{ width: '14px', height: '14px', color: '#c94a4a' }} viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4 4h16v16H4V4z" opacity="0.3" />
-              <path d="M2 2h20v20H2V2zm2 2v16h16V4H4z" />
-            </svg>
-            <span
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                color: '#8b8070',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              词典释义 ({entries.length})
+    <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
+      {words.map(word => (
+        <div key={word} style={{ marginBottom: '1.25rem' }}>
+          {/* Syllable header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            <span className="tibetan" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#e8d0c0', fontFamily: 'var(--font-tibetan)' }}>
+              {word}
+            </span>
+            <span style={{ fontSize: '0.65rem', color: '#4a4540', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              {byWord[word].length} 条释义
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '0.75rem' }}>
-            {entries.map((entry: LookupEntry) => {
+          {/* Entry cards */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingLeft: '0.5rem' }}>
+            {byWord[word].map((entry, i) => {
               const color = getDictColor(entry.dict_name);
               return (
-                <div
-                  key={entry.dict_name}
-                  className="card animate-fade-up"
-                  style={{
-                    overflow: 'hidden',
-                    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
-                  }}
-                >
-                  {/* Header bar */}
-                  <div
-                    style={{
-                      padding: '0.625rem 1rem',
-                      borderBottom: `1px solid ${color.accent}20`,
-                      background: color.bg,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        background: color.accent,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        color: color.accent,
-                        fontFamily: 'var(--font-sans)',
-                      }}
-                    >
+                <div key={i} style={{
+                  padding: '0.625rem 0.875rem', borderRadius: '8px',
+                  background: color.bg,
+                  borderLeft: `2px solid ${color.accent}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: color.accent, fontFamily: 'var(--font-sans)' }}>
                       {entry.dict_name}
                     </span>
                   </div>
-                  {/* Definition */}
-                  <div style={{ padding: '0.875rem 1rem' }}>
-                    <DefinitionText text={entry.definition} accent={color.accent} />
-                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#b0a898', lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                    {entry.definition.replace(/<[^>]+>/g, '').slice(0, 300)}
+                    {entry.definition.length > 300 ? '…' : ''}
+                  </span>
                 </div>
               );
             })}
           </div>
         </div>
-      )}
-
-      {/* Verb stem table */}
-      {verb_entries && verb_entries.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              marginBottom: '1rem',
-            }}
-          >
-            <svg style={{ width: '14px', height: '14px', color: '#d97706' }} viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span
-              style={{
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                color: '#8b8070',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              动词词干形态 ({verb_entries.length})
-            </span>
-          </div>
-
-          <div className="card" style={{ overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr
-                  style={{
-                    background: 'rgba(217,119,6,0.06)',
-                    borderBottom: '1px solid rgba(217,119,6,0.15)',
-                  }}
-                >
-                  {['词干', '现在时', '过去时', '将来时', '命令式', '释义'].map(h => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '0.625rem 1rem',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        color: '#d97706',
-                        letterSpacing: '0.04em',
-                        textTransform: 'uppercase',
-                        textAlign: 'left',
-                        fontFamily: 'var(--font-sans)',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {verb_entries.map((ve: VerbEntry, i: number) => (
-                  <tr
-                    key={i}
-                    style={{
-                      borderTop: i > 0 ? '1px solid rgba(255,255,255,0.04)' : undefined,
-                    }}
-                  >
-                    {[
-                      ve.headword,
-                      stripLabel(ve.present),
-                      stripLabel(ve.past),
-                      stripLabel(ve.future),
-                      stripLabel(ve.imperative),
-                      stripLabel(ve.meaning),
-                    ].map((cell, j) => (
-                      <td
-                        key={j}
-                        style={{
-                          padding: '0.625rem 1rem',
-                          fontSize: j === 0 ? '0.95rem' : '0.8rem',
-                          color: j === 0 ? '#d97706' : '#8b8070',
-                          fontFamily: j === 0 ? 'var(--font-tibetan)' : 'var(--font-sans)',
-                          fontWeight: j === 0 ? 700 : 400,
-                          maxWidth: j === 0 ? '80px' : '200px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {cell || '—'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      ))}
     </div>
-  );
-}
-
-function stripLabel(s?: string) {
-  if (!s) return undefined;
-  return s.replace(/^(Present|Past|Future|Imperative|Meaning):\s*/i, '').trim();
-}
-
-function DefinitionText({ text, accent }: { text: string; accent: string }) {
-  // Strip HTML tags, limit length
-  const stripped = text
-    .replace(/<[^>]+>/g, '')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
-    .trim();
-  const limited = stripped.length > 400 ? stripped.slice(0, 400) + '…' : stripped;
-
-  return (
-    <span
-      style={{
-        fontSize: '0.875rem',
-        color: '#c8c0b0',
-        lineHeight: '1.7',
-        fontFamily: 'var(--font-sans)',
-      }}
-    >
-      {limited}
-    </span>
   );
 }

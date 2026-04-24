@@ -455,3 +455,51 @@ body {
   margin-bottom: 1rem;
   opacity: 0.3;
 }
+
+/* ── Analyzer 2-column grid ── */
+.analyzer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 1400px;
+  margin: 0 auto;
+  gap: 0;
+}
+.analyzer-grid > div:first-child {
+  padding-right: 1.5rem;
+  border-right: 1px solid rgba(255,255,255,0.05);
+  min-width: 0;
+}
+.analyzer-grid > div:last-child {
+  padding-left: 1.5rem;
+  min-width: 0;
+}
+
+/* ── RAG grid ── */
+.rag-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+}
+
+@media (max-width: 900px) {
+  .analyzer-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .analyzer-grid > div:first-child {
+    padding-right: 0;
+    border-right: none;
+  }
+  .analyzer-grid > div:last-child {
+    padding-left: 0;
+  }
+
+  .rag-grid {
+    grid-template-columns: 1fr;
+    height: auto !important;
+  }
+  .rag-grid > div:first-child {
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding-right: 1.5rem;
+  }
+}

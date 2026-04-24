@@ -775,6 +775,9 @@ def main():
         print(f"  Resized embeddings: {old_vocab:,} → {tokenizer.vocab_size:,}")
         model.gradient_checkpointing_enable()
         model.to(device)
+        if torch.cuda.device_count() > 1:
+            print(f"  Using {torch.cuda.device_count()} GPUs with DataParallel")
+            model = torch.nn.DataParallel(model)
 
     elif args.expand_vocab:
         # 扩展词汇表
@@ -790,11 +793,17 @@ def main():
         if num_added > 0:
             resize_model_embeddings(model, len(tokenizer), device)
         model.to(device)
+        if torch.cuda.device_count() > 1:
+            print(f"  Using {torch.cuda.device_count()} GPUs with DataParallel")
+            model = torch.nn.DataParallel(model)
 
         # 更新model_dir以使用扩展后的tokenizer
         args.model_dir = str(output_dir / "expanded_tokenizer")
     else:
         model, tokenizer = load_tibert_for_continued_pretrain(args.model_dir, device)
+        if torch.cuda.device_count() > 1:
+            print(f"  Using {torch.cuda.device_count()} GPUs with DataParallel")
+            model = torch.nn.DataParallel(model)
 
     # 2. 评估训练前的模型 (可选)
     if args.eval_before_train:

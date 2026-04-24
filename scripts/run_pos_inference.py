@@ -10,6 +10,7 @@ Usage:
 
 import sys
 import json
+import pickle
 import torch
 import torch.nn as nn
 from pathlib import Path
@@ -23,8 +24,9 @@ from transformers import BertConfig, BertModel
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
 MODEL_DIR   = Path(__file__).parent.parent / "model" / "TiBERT-classical-spm-500k" / "final_model"
-CHECKPOINT  = Path(__file__).parent.parent / "model" / "pos_classifier" / "best_model.pt"
-LABEL_MAP   = Path(__file__).parent.parent / "data"  / "corpus" / "pos_dataset" / "label_map.json"
+CHECKPOINT  = Path(__file__).parent.parent / "model" / "pos_classifier" / "crf_supcon" / "best_model.pt"
+LABEL_MAP   = Path(__file__).parent.parent / "model" / "pos_classifier" / "crf_supcon" / "test_results.json"
+DICT_PATH   = Path(__file__).parent.parent / "data"  / "corpus" / "pos_dataset" / "dict_word_pos.pkl"
 
 # ── Case particle metadata ─────────────────────────────────────────────────────
 
@@ -70,6 +72,158 @@ TAG_DESCRIPTIONS = {
     "skt":       "梵语音译",
     "case.*":    "格助词",
 }
+
+
+# ── Dictionary Post-Processing ─────────────────────────────────────────────────
+
+class DictPostProcessor:
+    """
+    Maximum Forward Matching (MMW) to reconstruct Tibetan compound words
+    from the raw text, then override model predictions at the
+    corresponding SPM token positions.
+
+    The SPM tokenizer fragments multi-syllable compound words (e.g.
+    བཅོམ་ལྡན་འདས → བཅོམ ་ ལྡན ་ འདས).  We bypass this by running MMW
+    directly on the original Unicode text — which has intact word boundaries
+    — then mapping those character ranges back to SPM token positions.
+    """
+
+    def __init__(self, dict_path: str | Path):
+        with open(dict_path, 'rb') as f:
+            self.word_pos = pickle.load(f)  # word → (tag, count)
+        self.max_word_len = max(len(w) for w in self.word_pos) if self.word_pos else 0
+        print(f"[DictPostProcessor] Loaded {len(self.word_pos)} words (max={self.max_word_len} chars)")
+
+    def _build_spm_char_map(self, text: str, syllables: list[str]) -> list[tuple[int, int]]:
+        """
+        Map each SPM token to its character offset range in the raw text.
+        Also compute byte offsets for UTF-8 encoding correctness.
+        Returns list of (char_start, char_end) for each syllable token.
+        """
+        char_pos = 0
+        char_ranges = []
+        for tok in syllables:
+            start = char_pos
+            end = start + len(tok)   # len() counts Unicode chars, not bytes
+            char_ranges.append((start, end))
+            char_pos = end
+        return char_ranges
+
+    def _mmw_on_raw_text(self, text: str) -> list[tuple[int, int, str]]:
+        """
+        Two-pass MMW on raw Unicode text using character positions.
+        Returns list of (char_start, char_end, word) for matched dictionary words.
+        Separators (་/།) inside a matched word are allowed — Tibetan orthography
+        includes them within word boundaries.
+        """
+        n_chars = len(text)
+
+        # Pass 1: collect all valid dictionary matches at every character position
+        candidates = []  # (char_length, char_start, char_end, word)
+        for start in range(n_chars):
+            ch = text[start]
+            # Skip standalone separator markers
+            if ch in ('་', '།'):
+                continue
+            max_search = min(self.max_word_len, n_chars - start)
+            found = False
+            for length in range(max_search, 0, -1):
+                word = text[start:start + length]
+                if word in self.word_pos:
+                    candidates.append((length, start, start + length, word))
+                    found = True
+                    break
+            if found:
+                continue
+
+        if not candidates:
+            return []
+
+        # Pass 2: longest-match-wins (by character count)
+        candidates.sort(key=lambda x: -x[0])
+        used_chars = set()
+        result = []
+        for char_length, start, end, word in candidates:
+            chars_in_word = set(range(start, end)) & used_chars
+            if chars_in_word:
+                continue  # some chars already claimed by longer match
+            result.append((start, end, word))
+            used_chars.update(range(start, end))
+        return result
+
+    def override_predictions(
+        self,
+        raw_text: str,
+        syllables: list[str],
+        tagged_tokens: list,
+        id_to_label: dict,
+    ) -> list:
+        """
+        MMW on raw text → map word ranges to SPM token indices → override.
+        """
+        # Step 1: MMW on raw text
+        word_matches = self._mmw_on_raw_text(raw_text)
+        if not word_matches:
+            return tagged_tokens
+
+        # Step 2: build SPM token → character range map
+        spm_char_map = self._build_spm_char_map(raw_text, syllables)
+
+        # Step 3: for each word match, find which SPM tokens it contains
+        # Separators (་/།) are never overridden — they're orthographic markers.
+        spm_to_words = [[] for _ in syllables]
+        for char_start, char_end, word in word_matches:
+            tag, count = self.word_pos[word]
+            if count < 2:
+                continue
+            for tok_idx, (spm_start, spm_end) in enumerate(spm_char_map):
+                if tok_idx < len(syllables) and syllables[tok_idx] in ('་', '།'):
+                    continue  # separators are never overridden
+                if spm_start >= char_start and spm_end <= char_end:
+                    spm_to_words[tok_idx].append((word, tag, count))
+
+        # Step 4: apply overrides — prefer the longest character match
+        # When multiple dictionary words cover the same SPM token (nested coverage),
+        # the one with the most characters is most likely the correct word.
+        overrides = {}  # spm_idx → dict_tag
+        for tok_idx, word_list in enumerate(spm_to_words):
+            if not word_list:
+                continue
+            best = max(word_list, key=lambda x: len(x[0]))  # longest by char count
+            _, best_tag, best_count = best
+            overrides[tok_idx] = best_tag
+
+        if not overrides:
+            return tagged_tokens
+
+        changed = sum(
+            1 for idx, new_tag in overrides.items()
+            if idx < len(tagged_tokens) and tagged_tokens[idx].label != new_tag
+        )
+        print(f"  [Dict Override] {changed} syllables overridden:")
+        for idx, new_tag in sorted(overrides.items()):
+            if idx < len(tagged_tokens):
+                old_tag = tagged_tokens[idx].label
+                if old_tag != new_tag:
+                    print(f"    [{tagged_tokens[idx].token}] {old_tag} → {new_tag}")
+
+        # Apply overrides
+        result = []
+        for idx, tok in enumerate(tagged_tokens):
+            if idx in overrides and tok.token not in ("་", "།"):
+                new_label = overrides[idx]
+                new_id = next((i for i, l in id_to_label.items() if l == new_label), tok.label_id)
+                result.append(TaggedToken(
+                    token=tok.token,
+                    label_id=new_id,
+                    label=new_label,
+                    description=TAG_DESCRIPTIONS.get(new_label, new_label),
+                    is_case_particle=new_label in CASE_PARTICLES,
+                    case_meaning=CASE_PARTICLES.get(new_label) if new_label in CASE_PARTICLES else None,
+                ))
+            else:
+                result.append(tok)
+        return result
 
 
 # ── Model ─────────────────────────────────────────────────────────────────────
@@ -120,39 +274,90 @@ class PosInference:
             spm_model_file=str(MODEL_DIR / "spm.model")
         )
 
-        # Load label map
+        # Load label map from test_results.json (has correct label IDs from training)
         with open(LABEL_MAP, encoding="utf-8") as f:
             lm = json.load(f)
-        self.id_to_label = {int(k): v for k, v in lm["id_to_label"].items()}
-        self.num_labels = len(self.id_to_label)
+        # test_results.json stores {id: {"label": "n.count", "f1": ..., "support": ...}}
+        label_stats = lm.get("label_stats", {})
+        self.id_to_label = {}
+        for k, v in label_stats.items():
+            self.id_to_label[int(k)] = v["label"]
+        # model was trained with 77 labels; fill in missing IDs with placeholders
+        for i in range(77):
+            if i not in self.id_to_label:
+                self.id_to_label[i] = f"UNK_{i}"
+        self.num_labels = 77  # checkpoint trained with 77 classes
 
-        # Load model
-        self.model = PosTagger(num_labels=self.num_labels)
-        ckpt = torch.load(CHECKPOINT, map_location=self.device, weights_only=True)
-        self.model.load_state_dict(ckpt["model_state"], strict=False)
+        # Load model — checkpoint has 77 labels; use that number
+        real_num_labels = 77
+        self.model = PosTagger(num_labels=real_num_labels)
+        ckpt = torch.load(CHECKPOINT, map_location=self.device, weights_only=False)
+        state = ckpt["model_state"]
+        # Strip module. (DataParallel) and bert. (module prefix) prefixes
+        state = {k.replace("module.", "").replace("bert.", ""): v for k, v in state.items()}
+        missing, unexpected = self.model.load_state_dict(state, strict=False)
+        if missing:
+            print(f"[PosInference] missing keys (expected for CRF/contrastive head): {len(missing)}")
+        self.model.to(self.device)
+        self.model.eval()
+        print(f"[PosInference] Loaded BERT+Linear (skipping CRF/contrastive) epoch {ckpt['epoch']} → {self.device}")
         self.model.to(self.device)
         self.model.eval()
         print(f"[PosInference] Loaded model from epoch {ckpt['epoch']} → {self.device}")
 
+        # Load dictionary post-processor
+        if DICT_PATH.exists():
+            self.dict_processor = DictPostProcessor(DICT_PATH)
+        else:
+            self.dict_processor = None
+            print("[PosInference] No dict_word_pos.pkl found — skipping dict post-processing")
+
     def spm_tokenize(self, text: str) -> list[str]:
-        """Split Tibetan text into syllable tokens."""
-        tokens = []
+        """
+        Split Tibetan text into syllable tokens, aligned with training pipeline.
+
+        Training uses spm_tokenize_word() which strips shad markers from syllables
+        (e.g. བོད་ → བོད + ་) before SentencePiece lookup.
+        To avoid train-inference tokenization mismatch (34pp accuracy gap),
+        we split by shad first, apply longest-match within each bare syllable,
+        then re-attach the shad markers.
+        """
+        # Step 1: split by shad markers to preserve syllable boundaries
+        shad_markers = []
+        for ch in text:
+            if ch in ('་', '།', '༔'):
+                shad_markers.append(ch)
+            else:
+                shad_markers.append(None)
+
+        # Step 2: longest-match within each syllable (not across them)
+        result = []
+        unk_id = self.tokenizer._token2id.get("[UNK]")
         i = 0
         while i < len(text):
-            # Try longest match first
+            ch = text[i]
+            # Shad markers are their own tokens
+            if ch in ('་', '།', '༔'):
+                result.append(ch)
+                i += 1
+                continue
+            # Longest-match within a syllable
             best = None
-            for n in range(min(10, len(text) - i), 0, -1):
+            max_len = min(10, len(text) - i)
+            for n in range(max_len, 0, -1):
                 sub = text[i:i+n]
+                # Stop if we hit a shad marker mid-span
+                if any(c in ('་', '།', '༔') for c in sub):
+                    continue
                 tid = self.tokenizer._convert_token_to_id(sub)
-                unk_id = self.tokenizer._token2id.get("[UNK]")
                 if tid != unk_id:
                     best = sub
                     break
             if best is None:
-                best = text[i]  # single char fallback
-            tokens.append(best)
+                best = text[i]
+            result.append(best)
             i += len(best)
-        return tokens
+        return result
 
     def tag(self, text: str) -> list[TaggedToken]:
         """Tag a Tibetan text string."""
@@ -187,6 +392,13 @@ class PosInference:
                 is_case_particle=is_case,
                 case_meaning=CASE_PARTICLES.get(label) if is_case else None,
             ))
+
+        # Dictionary post-processing: MMW word reconstruction + POS override
+        if self.dict_processor is not None:
+            results = self.dict_processor.override_predictions(
+                text, syllable_tokens, results, self.id_to_label
+            )
+
         return results
 
 

@@ -4,6 +4,7 @@ import { AnalyzerPage } from './pages/AnalyzerPage';
 import { LearnerPage } from './pages/LearnerPage';
 import { CorpusPage } from './pages/CorpusPage';
 import { LookupPage } from './pages/LookupPage';
+import { RagPage } from './pages/RagPage';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
             <Route path="/dict" element={<LookupPage />} />
             <Route path="/learner" element={<LearnerPage />} />
             <Route path="/corpus" element={<CorpusPage />} />
+            <Route path="/rag" element={<RagPage />} />
           </Routes>
         </main>
       </div>
