@@ -1,0 +1,210 @@
+{
+  "summary": {
+    "total": 22,
+    "verified": 21,
+    "suspicious": 1,
+    "hallucinated": 0,
+    "skipped": 0,
+    "integrity_score": 0.955
+  },
+  "results": [
+    {
+      "cite_key": "wolf2020transformers",
+      "title": "Transformers: State-of-the-Art Natural Language Processing",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via DataCite: 'Transformers: State-of-the-Art Natural Language Processing'",
+      "relevance_score": 0.9
+    },
+    {
+      "cite_key": "bekker2020positive",
+      "title": "Learning from positive and unlabeled data: a survey",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Learning from positive and unlabeled data: a survey'",
+      "relevance_score": 0.1
+    },
+    {
+      "cite_key": "sommerschield2023machine",
+      "title": "Machine Learning for Ancient Languages: A Survey",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Machine Learning for Ancient Languages: A Survey'",
+      "relevance_score": 0.8
+    },
+    {
+      "cite_key": "nayak2020domain",
+      "title": "Domain adaptation challenges of BERT in tokenization and sub-word representations of Out-of-Vocabulary words",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Domain adaptation challenges of BERT in tokenization and sub-word representations of Out-of-Vocabulary words'",
+      "relevance_score": 0.75
+    },
+    {
+      "cite_key": "rai2020study",
+      "title": "Study of Various Methods for Tokenization",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Study of Various Methods for Tokenization'",
+      "relevance_score": 0.85
+    },
+    {
+      "cite_key": "vries2022make",
+      "title": "Make the Best of Cross-lingual Transfer: Evidence from POS Tagging with over 100 Languages",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Make the Best of Cross-lingual Transfer: Evidence from POS Tagging with over 100 Languages'",
+      "relevance_score": 0.8
+    },
+    {
+      "cite_key": "meelen2021optimisation",
+      "title": "Optimisation of the Largest Annotated Tibetan Corpus Combining Rule-based, Memory-based, and Deep-learning Methods",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Optimisation of the Largest Annotated Tibetan Corpus Combining Rule-based, Memory-based, and Deep-learning Methods'",
+      "relevance_score": 0.75
+    },
+    {
+      "cite_key": "liang2024tibetanbertwwm",
+      "title": "Tibetan-BERT-wwm: A Tibetan Pretrained Model With Whole Word Masking for Text Classification",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Tibetan-BERT-wwm: A Tibetan Pretrained Model With Whole Word Masking for Text Classification'",
+      "relevance_score": 0.95
+    },
+    {
+      "cite_key": "zhang2022research",
+      "title": "Research and Application of Tibetan Pre-training Language Model Based on BERT",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Research and Application of Tibetan Pre-training Language Model Based on BERT'",
+      "relevance_score": 0.85
+    },
+    {
+      "cite_key": "arora2022computational",
+      "title": "Computational Historical Linguistics and Language Diversity in South Asia",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Computational Historical Linguistics and Language Diversity in South Asia'",
+      "relevance_score": 0.6
+    },
+    {
+      "cite_key": "li2024tibetan",
+      "title": "Tibetan Sentence Boundaries Automatic Disambiguation Based on Bidirectional Encoder Representations from Transformers on Byte Pair Encoding Word Cutting Method",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Tibetan Sentence Boundaries Automatic Disambiguation Based on Bidirectional Encoder Representations from Transformers on Byte Pair Encoding Word Cutting Method'",
+      "relevance_score": 0.7
+    },
+    {
+      "cite_key": "zeisler2023modern",
+      "title": "To be or not to be: On the Modern Tibetan auxiliary verb red in classical texts",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'To be or not to be: On the Modern Tibetan auxiliary verb red in classical texts'",
+      "relevance_score": 0.65
+    },
+    {
+      "cite_key": "cairang2021research",
+      "title": "Research on error correction method of Tibetan text based on deep learning",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Research on error correction method of Tibetan text based on deep learning'",
+      "relevance_score": 0.65
+    },
+    {
+      "cite_key": "oisel2024evidentiality",
+      "title": "Evidentiality in Middle Classical Tibetan",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Evidentiality in Middle Classical Tibetan'",
+      "relevance_score": 0.55
+    },
+    {
+      "cite_key": "felbur2022crosslinguistic",
+      "title": "Crosslinguistic Semantic Textual Similarity of Buddhist Chinese and Classical Tibetan",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'Crosslinguistic Semantic Textual Similarity of Buddhist Chinese and Classical Tibetan'",
+      "relevance_score": 0.6
+    },
+    {
+      "cite_key": "ben2020grammatical",
+      "title": "The Grammatical Categories of the Classical Tibetan Verbs",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'The Grammatical Categories of the Classical Tibetan Verbs'",
+      "relevance_score": 0.7
+    },
+    {
+      "cite_key": "tashi2025eight",
+      "title": "The Eight Cases in Classical Tibetan",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via CrossRef: 'The Eight Cases in Classical Tibetan'",
+      "relevance_score": 0.9
+    },
+    {
+      "cite_key": "sun2022tibert",
+      "title": "TiBERT: Tibetan Pre-trained Language Model",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "openalex",
+      "details": "Confirmed via OpenAlex: 'TiBERT: Tibetan Pre-trained Language Model'",
+      "relevance_score": 0.9
+    },
+    {
+      "cite_key": "meelen2022classical",
+      "title": "Classical Tibetan Word Embeddings",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via DataCite: 'Classical Tibetan Word Embeddings'",
+      "relevance_score": 0.85
+    },
+    {
+      "cite_key": "meelen2020annotated",
+      "title": "The Annotated Corpus of Classical Tibetan (ACTib) - Version 2.0 (Segmented & POS-tagged)",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via DataCite: 'The Annotated Corpus of Classical Tibetan (ACTib) - Version 2.0 (Segmented & POS-tagged)'",
+      "relevance_score": 0.95
+    },
+    {
+      "cite_key": "meelen2020annotated",
+      "title": "The Annotated Corpus of Classical Tibetan (ACTib) - Version 2.0 (Segmented &amp; POS-tagged)",
+      "status": "verified",
+      "confidence": 1.0,
+      "method": "doi",
+      "details": "Confirmed via DataCite: 'The Annotated Corpus of Classical Tibetan (ACTib) - Version 2.0 (Segmented &amp; POS-tagged)'",
+      "relevance_score": 0.95
+    },
+    {
+      "cite_key": "devlin2019bert",
+      "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "status": "suspicious",
+      "confidence": 0.643,
+      "method": "openalex",
+      "details": "Partial match via OpenAlex (sim=0.64): '5\u5206\u3067\u5206\u304b\u308b!? \u6709\u540d\u8ad6\u6587\u30ca\u30ca\u30e1\u8aad\u307f\uff1aJacob Devlin et al. : BERT : Pre-training of Deep Bidirectional Transformers for Language Understanding'",
+      "relevance_score": 0.85
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "sanitized": true,
+  "tables_processed": 4,
+  "numbers_replaced": 37,
+  "numbers_kept": 17,
+  "prose_numbers_replaced": 0,
+  "verified_values_count": 7,
+  "replaced_samples": [
+    "180",
+    "434",
+    "144",
+    "347",
+    "043",
+    "044",
+    "42",
+    "25%",
+    "0.412",
+    "0.198",
+    "0.024",
+    "0.791",
+    "0.778",
+    "0.631",
+    "0.819",
+    "0.689",
+    "0.696",
+    "0.941",
+    "0.541",
+    "0.582"
+  ],
+  "generated": "2026-04-01T05:24:59+00:00"
+}
